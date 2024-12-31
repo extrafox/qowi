@@ -1,6 +1,7 @@
 import numpy as np
 import unittest
 from qowi import wavelet
+from qowi.wavelet import Wavelet
 from skimage import io
 
 TEST_IMAGES = [
@@ -49,86 +50,79 @@ TEST_IMAGES = [
         [[162, 153, 143], [188, 178, 166], [198, 183, 165], [219, 194, 168]],
         [[249, 234, 216], [240, 224, 204], [190, 168, 143], [120, 109, 91]],
     ], dtype = 'uint8'),
-]
-
-TEST_WAVELETS = [
-    np.array([
-        [[127.5, 127.5, 127.5], [0., 0., 0.]],
-        [[0., 0., 0.], [127.5, 127.5, 127.5]],
-    ], dtype=np.float16),
-    np.array([
-        [[7.,  7.,  7.], [0.,  0.,  0.], [0.,  0.,  0.], [0.,  0.,  0.]],
-        [[-5., -5., -5.], [0.,  0.,  0.], [0.,  0.,  0.], [0.,  0.,  0.]],
-        [[-2., -2., -2.], [-2., -2., -2.], [0.,  0.,  0.], [0.,  0.,  0.]],
-        [[-4., -4., -4.], [-4., -4., -4.], [0.,  0.,  0.], [0.,  0.,  0.]]
-    ], dtype=np.float16),
-    None,
+        np.array([
+        [[95, 108, 109], [97, 109, 108], [93, 106, 109], [95, 111, 115], [180, 202, 215], [170, 195, 214], [175, 206, 225], [189, 216, 233]],
+        [[91, 85, 76], [83, 75, 65], [91, 93, 88], [83, 85, 80], [179, 199, 211], [176, 200, 220], [177, 206, 225], [191, 216, 233]],
+        [[83, 73, 63], [74, 66, 56], [80, 87, 86], [79, 87, 87], [164, 180, 191], [179, 200, 217], [175, 197, 209], [185, 205, 218]],
+        [[195, 181, 167], [173, 164, 152], [75, 82, 82], [77, 88, 90], [162, 177, 187], [177, 197, 212], [170, 186, 194], [179, 194, 203]],
+        [[228, 213, 197], [234, 221, 206], [190, 195, 191], [162, 178, 183], [165, 172, 176], [179, 188, 192], [131, 124, 119], [111, 97, 88]],
+        [[216, 201, 186], [229, 213, 199], [235, 222, 210], [141, 134, 127], [65, 42, 31], [210, 187, 159], [212, 189, 161], [79, 59, 47]],
+        [[190, 171, 154], [219, 206, 194], [67, 65, 61], [84, 73, 57], [101, 84, 66], [187, 160, 134], [177, 148, 124], [133, 117, 104]],
+        [[218, 205, 191], [216, 205, 192], [162, 153, 143], [188, 178, 166], [198, 183, 165], [219, 194, 168], [207, 183, 159], [175, 162, 149]],
+    ], dtype = 'uint8'),
 ]
 
 class TestWavelet(unittest.TestCase):
 
-    def test_generate_wavelet_single_level(self):
-        gen_w = wavelet.gen_wavelet(TEST_IMAGES[0])
-        test_w = TEST_WAVELETS[0]
-        self.assertTrue((gen_w == test_w).all())
-
-    def test_generate_wavelet_two_levels(self):
-        gen_w = wavelet.gen_wavelet(TEST_IMAGES[1])
-        test_w = TEST_WAVELETS[1]
-        self.assertTrue((gen_w == test_w).all())
-
-    def test_binary_round(self):
-        a = np.array([1., 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.], dtype=np.float16)
-
-        b = wavelet.binary_round(a, 1)
-        expected = np.array([1., 1., 1., 1.5, 1.5, 1.5, 1.5, 1.5, 2., 2., 2.], dtype=np.float16)
-        self.assertTrue((b == expected).all())
-
-        b = wavelet.binary_round(a, 2)
-        expected = np.array([1., 1., 1.25, 1.25, 1.5, 1.5, 1.5, 1.75, 1.75, 2., 2.], dtype=np.float16)
-        self.assertTrue((b == expected).all())
-
     def test_generate_round_trip_single_level(self):
         source_image = TEST_IMAGES[0]
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_w = wavelet.gen_spatial(gen_w, 2, 2)
-        self.assertTrue((source_image == test_w).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
     def test_generate_round_trip_two_level(self):
         source_image = TEST_IMAGES[1]
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, 4, 4)
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
     def test_generate_round_trip_third_test_image(self):
         source_image = TEST_IMAGES[2]
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, 4, 4)
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
-    def test_generate_round_trip_dog_partial(self):
+    def test_generate_round_trip_test_image_3(self):
+        source_image = TEST_IMAGES[3]
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
+
+    def test_generate_round_trip_test_image_4(self):
+        source_image = TEST_IMAGES[4]
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
+
+    def test_generate_round_trip_test_image_5(self):
         source_image = TEST_IMAGES[5]
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, source_image.shape[0], source_image.shape[1])
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
+
+    def test_generate_round_trip_test_image_6(self):
+        source_image = TEST_IMAGES[6]
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
     def test_generate_round_trip_dog_32x32(self):
         source_image = io.imread('../media/dog_32x32.bmp')
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, source_image.shape[0], source_image.shape[1])
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
     def test_generate_round_trip_dog_128x128(self):
         source_image = io.imread('../media/dog_128x128.jpg')
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, source_image.shape[0], source_image.shape[1])
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
     def test_generate_round_trip_dog_512x512(self):
         source_image = io.imread('../media/dog_512x512.bmp')
-        gen_w = wavelet.gen_wavelet(source_image)
-        test_spatial = wavelet.gen_spatial(gen_w, source_image.shape[0], source_image.shape[1])
-        self.assertTrue((source_image == test_spatial).all())
+        w = Wavelet().prepare_from_image(source_image)
+        wavelet_image = w.as_image()
+        self.assertTrue((source_image == wavelet_image).all())
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,91 +1,115 @@
 import math
 import numpy as np
-from blosc import destroy
 from numpy import ndarray
 
-AVERAGE_PIXEL = (128, 128, 128)
+class Wavelet:
+    def __init__(self, width=0, height=0):
+        self._set_shape(width, height)
+        self.wavelet = None
+        self.carry_over = None
 
-def binary_round(a: ndarray, num_bits=2) -> ndarray:
-    return np.round(a * 2 ** num_bits) / 2 ** num_bits
+    def _set_shape(self, width, height):
+        self.width = width
+        self.height = height
+        if width == 0 or height == 0:
+            self.num_levels = 0
+            self.level = 0
+        else:
+            self.num_levels = max(math.ceil(math.log2(width)), math.ceil(math.log2(height)))
+            self.length = 2 ** self.num_levels
 
-# TODO: right now I am working with square wavelets. generalize to different sizes
+    def _gen_carry_over(self):
+        self.carry_over = []
+        for level in range(self.num_levels):
+            self.carry_over.append(np.zeros((2 ** level, 2 ** level, 3), dtype=np.float16))
 
-def gen_wavelet(image: np.ndarray, dtype=np.float64) -> np.ndarray:
-    # generate wavelet with a size that is a factor of 2 in both dimensions
-    num_horiz_levels = math.ceil(math.log2(image.shape[0]))
-    num_vert_levels = math.ceil(math.log2(image.shape[1]))
-    width = 2 ** num_horiz_levels
-    height = 2 ** num_vert_levels
+    def _gen_wavelet(self):
+        for dest_level in reversed(range(self.num_levels)):
+            dest_length = 2 ** dest_level
+            dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.float16)
 
-    source_wavelet = np.full((width, height, 3), AVERAGE_PIXEL, dtype=dtype)
-    source_wavelet[:image.shape[0], :image.shape[1]] = image
+            for i in range(dest_length):
+                for j in range(dest_length):
+                    a10 = self.wavelet[2 * i, 2 * j]
+                    b10 = self.wavelet[2 * i, 2 * j + 1]
+                    c10 = self.wavelet[2 * i + 1, 2 * j]
+                    d10 = self.wavelet[2 * i + 1, 2 * j + 1]
 
-    dest_width, dest_height = width // 2, height // 2
-    dest_wavelet = None
-    while dest_width >= 1 or dest_height >= 1:
-        dest_wavelet = np.copy(source_wavelet)
+                    a8 = np.trunc(a10)
+                    b8 = np.trunc(b10)
+                    c8 = np.trunc(c10)
+                    d8 = np.trunc(d10)
 
-        # iterate over only the LL positions
-        for i in range(dest_width):
-            for j in range(dest_height):
-                source_i_min, source_j_min = 2 * i, 2 * j
+                    if dest_level < self.num_levels - 1:
+                        a_co = a10 - a8
+                        b_co = b10 - b8
+                        c_co = c10 - c8
+                        d_co = d10 - d8
 
-                # NOTE: all values are stored in as non-averaged int values, do average now
+                        self.carry_over[dest_level + 1][2 * i, 2 * j] = a_co
+                        self.carry_over[dest_level + 1][2 * i, 2 * j + 1] = b_co
+                        self.carry_over[dest_level + 1][2 * i + 1, 2 * j] = c_co
+                        self.carry_over[dest_level + 1][2 * i + 1, 2 * j + 1] = d_co
 
-                # a = binary_round(source_wavelet[source_i_min, source_j_min])
-                # b = binary_round(source_wavelet[source_i_min, source_j_min + 1])
-                # c = binary_round(source_wavelet[source_i_min + 1, source_j_min])
-                # d = binary_round(source_wavelet[source_i_min + 1, source_j_min + 1])
+                    ll = (a8 + b8 + c8 + d8) / 4
+                    hl = (a8 - b8 + c8 - d8) / 4
+                    lh = (a8 + b8 - c8 - d8) / 4
+                    hh = (a8 - b8 - c8 + d8) / 4
 
-                a = source_wavelet[source_i_min, source_j_min]
-                b = source_wavelet[source_i_min, source_j_min + 1]
-                c = source_wavelet[source_i_min + 1, source_j_min]
-                d = source_wavelet[source_i_min + 1, source_j_min + 1]
+                    dest_wavelets[i, j] = ll
+                    dest_wavelets[i, dest_length + j] = hl
+                    dest_wavelets[dest_length + i, j] = lh
+                    dest_wavelets[dest_length + i, dest_length + j] = hh
 
-                ll = (a + b + c + d) / 4
-                hl = (a - b + c - d) / 4
-                lh = (a + b - c - d) / 4
-                hh = (a - b - c + d) / 4
+            # copy to main wavelets
+            self.wavelet[:dest_wavelets.shape[1], :dest_wavelets.shape[1]] = dest_wavelets
 
-                dest_wavelet[i, j] = ll
-                dest_wavelet[i, dest_width + j] = hl
-                dest_wavelet[dest_height + i, j] = lh
-                dest_wavelet[dest_height + i, dest_width + j] = hh
+    def prepare_from_image(self, image: ndarray):
+        self._set_shape(image.shape[0], image.shape[1])
 
-        source_wavelet = dest_wavelet
-        dest_width = dest_width // 2
-        dest_height = dest_height // 2
+        # fill the empty area with zeros and copy source image to top left of wavelet
+        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.float16)
+        self.wavelet[:self.width, :self.height] = image
 
-    return dest_wavelet
+        # prepare the carry-over data structure
+        self._gen_carry_over()
 
-def gen_spatial(wavelet: ndarray, width, height, dtype=np.uint8) -> ndarray:
-    final_width, final_height = wavelet.shape[0] // 2, wavelet.shape[1] // 2
-    this_width, this_height = 1, 1
-    source_wavelet = wavelet
-    dest_wavelet = wavelet.copy()
-    level = 0
-    while this_width <= final_width and this_height <= final_height:
-        for i in range(this_height):
-            for j in range(this_width):
-                ll = source_wavelet[i, j]
-                hl = source_wavelet[i, this_width + j]
-                lh = source_wavelet[this_height + i, j]
-                hh = source_wavelet[this_height + i, this_width + j]
+        # generate the wavelets and carry-over
+        self._gen_wavelet()
 
-                a = ll + hl + lh + hh
-                b = ll - hl + lh - hh
-                c = ll + hl - lh - hh
-                d = ll - hl - lh + hh
+        return self
 
-                dest_wavelet[2 * i, 2 * j] = a
-                dest_wavelet[2 * i, 2 * j + 1] = b
-                dest_wavelet[2 * i + 1, 2 * j] = c
-                dest_wavelet[2 * i + 1, 2 * j + 1] = d
+    def as_image(self):
+        for source_level in range(self.num_levels):
+            source_length = 2 ** source_level
+            dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.float16)
 
-        level += 1
-        this_width, this_height = this_width * 2, this_height * 2
-        source_wavelet = dest_wavelet
-        dest_wavelet = source_wavelet.copy()
+            for i in range(source_length):
+                for j in range(source_length):
+                    ll = self.wavelet[i, j]
+                    hl = self.wavelet[i, source_length + j]
+                    lh = self.wavelet[source_length + i, j]
+                    hh = self.wavelet[source_length + i, source_length + j]
 
-    spatial = dest_wavelet[:width, :height].astype(dtype)
-    return spatial
+                    a8 = ll + hl + lh + hh
+                    b8 = ll - hl + lh - hh
+                    c8 = ll + hl - lh - hh
+                    d8 = ll - hl - lh + hh
+
+                    if source_level < self.num_levels - 1:
+                        a_co = self.carry_over[source_level + 1][2 * i, 2 * j]
+                        b_co = self.carry_over[source_level + 1][2 * i, 2 * j + 1]
+                        c_co = self.carry_over[source_level + 1][2 * i + 1, 2 * j]
+                        d_co = self.carry_over[source_level + 1][2 * i + 1, 2 * j + 1]
+                    else:
+                        a_co, b_co, c_co, d_co = 0, 0, 0, 0
+
+                    dest_wavelets[2 * i, 2 * j] = a8 + a_co
+                    dest_wavelets[2 * i, 2 * j + 1] = b8 + b_co
+                    dest_wavelets[2 * i + 1, 2 * j] = c8 + c_co
+                    dest_wavelets[2 * i + 1, 2 * j + 1] = d8 + d_co
+
+            self.wavelet[:dest_wavelets.shape[0], :dest_wavelets.shape[1]] = dest_wavelets
+
+        spatial = self.wavelet[:self.width, :self.height].astype(np.uint8)
+        return spatial
