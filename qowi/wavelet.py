@@ -16,11 +16,15 @@ def threshold_array(value: ndarray, threshold: float):
 
 class Wavelet:
     def __init__(self, width=0, height=0):
-        self._set_shape(width, height)
+        self.width = 0
+        self.height = 0
+        self.length = 0
         self.wavelet = None
         self.carry_over = None
 
-    def _set_shape(self, width, height):
+        self._initialize_from_shape(width, height)
+
+    def _initialize_from_shape(self, width, height):
         self.width = width
         self.height = height
         if width == 0 or height == 0:
@@ -29,6 +33,9 @@ class Wavelet:
         else:
             self.num_levels = max(math.ceil(math.log2(width)), math.ceil(math.log2(height)))
             self.length = 2 ** self.num_levels
+
+        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.float16)
+        self._gen_carry_over()
 
     def _gen_carry_over(self):
         self.carry_over = []
@@ -77,14 +84,10 @@ class Wavelet:
             self.wavelet[:dest_wavelets.shape[1], :dest_wavelets.shape[1]] = dest_wavelets
 
     def prepare_from_image(self, image: ndarray):
-        self._set_shape(image.shape[0], image.shape[1])
+        self._initialize_from_shape(image.shape[0], image.shape[1])
 
         # fill the empty area with zeros and copy source image to top left of wavelet
-        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.float16)
         self.wavelet[:self.width, :self.height] = image
-
-        # prepare the carry-over data structure
-        self._gen_carry_over()
 
         # generate the wavelets and carry-over
         self._gen_wavelet()
