@@ -2,6 +2,18 @@ import math
 import numpy as np
 from numpy import ndarray
 
+def bit_shift_array(value: ndarray, bit_shift: int):
+    if bit_shift > 0:
+        return np.round(value * 4 / 2 ** bit_shift) * 2 ** bit_shift / 4
+    else:
+        return value
+
+def threshold_array(value: ndarray, threshold: float):
+    if abs(value[0]) < threshold and abs(value[1]) < threshold and abs(value[2]) < threshold:
+        return np.zeros(3, dtype=np.float16)
+    else:
+        return value
+
 class Wavelet:
     def __init__(self, width=0, height=0):
         self._set_shape(width, height)
@@ -79,17 +91,29 @@ class Wavelet:
 
         return self
 
-    def as_image(self):
+    def as_image(self, bit_shift=0, threshold=0.0):
+        ret_wavelet = self.wavelet.copy()
+
         for source_level in range(self.num_levels):
             source_length = 2 ** source_level
             dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.float16)
 
             for i in range(source_length):
                 for j in range(source_length):
-                    ll = self.wavelet[i, j]
-                    hl = self.wavelet[i, source_length + j]
-                    lh = self.wavelet[source_length + i, j]
-                    hh = self.wavelet[source_length + i, source_length + j]
+                    ll = ret_wavelet[i, j]
+                    hl = ret_wavelet[i, source_length + j]
+                    lh = ret_wavelet[source_length + i, j]
+                    hh = ret_wavelet[source_length + i, source_length + j]
+
+                    if bit_shift > 0:
+                        # ll = bit_shift_array(ll, bit_shift)
+                        hl = bit_shift_array(hl, bit_shift)
+                        lh = bit_shift_array(lh, bit_shift)
+                        hh = bit_shift_array(hh, bit_shift)
+                    elif threshold > 0.0:
+                        hl = threshold_array(hl, threshold)
+                        lh = threshold_array(lh, threshold)
+                        hh = threshold_array(hh, threshold)
 
                     a8 = ll + hl + lh + hh
                     b8 = ll - hl + lh - hh
@@ -109,7 +133,6 @@ class Wavelet:
                     dest_wavelets[2 * i + 1, 2 * j] = c8 + c_co
                     dest_wavelets[2 * i + 1, 2 * j + 1] = d8 + d_co
 
-            self.wavelet[:dest_wavelets.shape[0], :dest_wavelets.shape[1]] = dest_wavelets
+            ret_wavelet[:dest_wavelets.shape[0], :dest_wavelets.shape[1]] = dest_wavelets
 
-        spatial = self.wavelet[:self.width, :self.height].astype(np.uint8)
-        return spatial
+        return ret_wavelet[:self.width, :self.height].astype(np.uint8)
