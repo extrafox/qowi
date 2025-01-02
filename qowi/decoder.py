@@ -2,23 +2,14 @@ import numpy as np
 import sys
 from bitstring import BitArray, Bits, BitStream
 from qowi.lru_cache import LRUCache
+from qowi.primitives import PList, PUnsignedInteger, PFloat
 from qowi.wavelet import Wavelet
-from qowi.entropy import entropy_decode, entropy_encode
 
 CACHE_SIZE = 2048
 ZERO_TOKEN = (0, 0, 0)
-
-def difference_to_int(a: np.ndarray) -> np.ndarray:
-    return (a * 4).astype(int)
-
-def int_to_difference(a: np.ndarray) -> np.ndarray:
-    return a.astype(np.float16) / 4
-
-def difference_array_to_token(a: np.ndarray) -> tuple:
-    return tuple(difference_to_int(a))
-
-def token_to_difference_array(t: tuple):
-    return int_to_difference(np.array(t))
+OP_CODE_RUN = Bits('0b0')
+OP_CODE_CACHE = Bits('0b10')
+OP_CODE_VALUE = Bits('0b11')
 
 class Decoder:
     def __init__(self, bitstream: BitStream):
@@ -32,47 +23,47 @@ class Decoder:
 
         self._decoded = False
 
-    def _decode_next_difference(self):
+    def _decode_next_difference(self) -> np.ndarray:
         if self._run_length > 0:
             self._run_length -= 1
-            return token_to_difference_array(self._last_token)
+            return PList.from_token(self._last_token).ndarray
 
         op_code = self._bitstream.read(1).uint
 
-        if op_code == 0: # RUN op code
-            self._run_length = entropy_decode(self._bitstream) # no point in incrementing, then decrementing
-            return token_to_difference_array(self._last_token)
+        if op_code == OP_CODE_RUN.uint:
+            self._run_length = entropy_decode(self._bitstream, dtype=PUnsignedInteger).value # no point in incrementing, then decrementing
+            return PList.from_token(self._last_token).ndarray
 
         op_code = (op_code << 1) + self._bitstream.read(1).uint
 
-        if op_code == 2: # CACHE op code
-            pos = entropy_decode(self._bitstream)
+        if op_code == OP_CODE_CACHE.uint:
+            pos = PList.from_bitstream(self._bitstream, 1, dtype=PUnsignedInteger)[0].value
             this_token = self._cache[pos]
             self._last_token = this_token
             self._cache.observe(this_token)
-            return token_to_difference_array(this_token)
+            return PList.from_token(this_token).ndarray
 
-        elif op_code == 3: # VALUE op code
-            this_token = [None, None, None]
-            for i in range(3):
-                sign = self._bitstream.read(1).uint
-                this_token[i] = entropy_decode(self._bitstream)
-                if sign == 1:
-                    this_token[i] = this_token[i] * -1
-            this_token = tuple(this_token)
+        elif op_code == OP_CODE_VALUE.uint:
+            value = PList.from_bitstream(self._bitstream, 3)
+            this_token = value.token
             self._last_token = this_token
             self._cache.observe(this_token)
-            return token_to_difference_array(this_token)
+            return value.ndarray
         else:
             raise ValueError("Invalid op code value {}".format(op_code))
 
-    def _decode_carry_over(self):
+    def _decode_carry_over(self) -> np.ndarray:
+        # TODO: handle carry over in a cleaner way
+
         carry_over = np.array([
             self._bitstream.read(2).uint,
             self._bitstream.read(2).uint,
             self._bitstream.read(2).uint,
         ], dtype=np.float16)
-        return int_to_difference(carry_over)
+        ret = np.array([0, 0, 0], dtype=np.float16)
+        for i in range(3):
+            ret[i] = carry_over[i] / 4
+        return ret
 
     def decode(self) -> Wavelet:
         if self._decoded:
@@ -84,10 +75,7 @@ class Decoder:
         self._wavelet = Wavelet(width, height)
 
         # decode the top value of the wavelet
-        r = self._bitstream.read(10).uint
-        g = self._bitstream.read(10).uint
-        b = self._bitstream.read(10).uint
-        self._wavelet.wavelet[0, 0] = int_to_difference(np.array((r, g, b), dtype=np.float16))
+        self._wavelet.wavelet[0, 0] = PList.from_bitstream(self._bitstream, 3).ndarray
 
         ### iterate over the wavelet encoding difference and carry-over values ###
 

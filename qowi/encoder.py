@@ -1,18 +1,15 @@
 import numpy as np
 import sys
-from bitstring import BitArray, Bits, BitStream
+from bitstring import BitArray, Bits
 from qowi.lru_cache import LRUCache
+from qowi.primitives import PList, PUnsignedInteger
 from qowi.wavelet import Wavelet
-from qowi.entropy import entropy_encode
 
 CACHE_SIZE = 2048
 ZERO_TOKEN = (0, 0, 0)
-
-def difference_to_int(a: np.ndarray) -> np.ndarray:
-    return (a * 4).astype(int)
-
-def difference_array_to_token(a: np.ndarray) -> tuple:
-    return tuple(difference_to_int(a))
+OP_CODE_RUN = Bits('0b0')
+OP_CODE_CACHE = Bits('0b10')
+OP_CODE_VALUE = Bits('0b11')
 
 def min_non_zero(*values) -> int:
     smallest = sys.maxsize
@@ -35,43 +32,31 @@ class Encoder:
 
     def _gen_run_encoding(self):
         ret = BitArray()
-        entropy_coded = entropy_encode(self._run_length - 1)
-        ret.append(Bits(uint=0, length=1)) # RUN op code
-        ret.append(entropy_coded)
+        ret.append(OP_CODE_RUN)
+        ret.append(PUnsignedInteger(self._run_length - 1).entropy_coded)
         return ret
 
     def _gen_cache_encoding(self, difference: np.ndarray):
         ret = BitArray()
 
         try:
-            this_token = difference_array_to_token(difference)
+            this_token = PList.from_ndarray(difference).token
             pos = self._cache.index(this_token)
         except ValueError:
             return ret
 
-        entropy_coded = entropy_encode(pos)
-        ret.append(BitArray(Bits(uint=2, length=2))) # CACHE op code
-        ret.append(entropy_coded)
+        ret.append(OP_CODE_CACHE)
+        ret.append(PUnsignedInteger(pos).entropy_coded)
         return ret
 
     def _gen_difference_value_encoding(self, difference: np.ndarray):
         ret = BitArray()
-        ret.append(Bits(uint=3, length=2)) # VALUE op code
-
-        diff_int = difference_to_int(difference)
-        for v in diff_int:
-            if v > 0:
-                ret.append(Bits(uint=0, length=1))
-            else:
-                ret.append(Bits(uint=1, length=1))
-
-            entropy_coded = entropy_encode(abs(v))
-            ret.append(entropy_coded)
-
+        ret.append(OP_CODE_VALUE)
+        ret.append(PList.from_ndarray(difference).entropy_coded)
         return ret
 
     def _encode_difference(self, difference: np.ndarray):
-        this_token = difference_array_to_token(difference)
+        this_token = PList.from_ndarray(difference).token
 
         if this_token == self._last_token:
             self._run_length += 1
@@ -99,7 +84,7 @@ class Encoder:
 
     def _encode_carry_over(self, carry_over: np.ndarray):
         for v in carry_over:
-            v_uint = difference_to_int(v)
+            v_uint = int((v % 1.0) * 4)
             self._response.append(Bits(uint=v_uint, length=2))
 
     def encode(self) -> BitArray:
@@ -111,10 +96,8 @@ class Encoder:
         self._response.append(Bits(uint=self._wavelet.height, length=16))
 
         # encode the top value of the wavelet
-        root_pixel = difference_to_int(self._wavelet.wavelet[0, 0])
-        self._response.append(Bits(uint=root_pixel[0], length=10))
-        self._response.append(Bits(uint=root_pixel[1], length=10))
-        self._response.append(Bits(uint=root_pixel[2], length=10))
+        root_pixel = PList.from_ndarray(self._wavelet.wavelet[0, 0])
+        self._response.append(root_pixel.entropy_coded)
 
         ### iterate over the wavelet encoding difference and carry-over values ###
 
