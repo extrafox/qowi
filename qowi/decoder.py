@@ -84,9 +84,6 @@ class Decoder:
 
             for i in range(source_length):
                 for j in range(source_length):
-
-                    # TODO: read filters from stream and write to wavelet
-
                     hl = self._decode_next_difference()
                     lh = self._decode_next_difference()
                     hh = self._decode_next_difference()
@@ -94,8 +91,6 @@ class Decoder:
                     self._wavelet.wavelet[i, source_length + j] = hl
                     self._wavelet.wavelet[source_length + i, j] = lh
                     self._wavelet.wavelet[source_length + i, source_length + j] = hh
-
-                    # TODO: read carry_over bits from stream and write to wavelet
 
                     if source_level < self._wavelet.num_levels - 1:
                         a_co = self._decode_carry_over()

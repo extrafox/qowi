@@ -3,8 +3,8 @@ from bitstring import BitArray, Bits, BitStream
 from qowi.entropy import entropy_decode, entropy_encode
 from typing import List
 
-INTEGER_ORDER_AND_INCREMENT = (2, 3)
-FLOAT_ORDER_AND_INCREMENT = (5, 3)
+INTEGER_ORDER_AND_INCREMENT = (1, 1)
+FLOAT_ORDER_AND_INCREMENT = (1, 1)
 
 class Primitive:
     @property
@@ -185,5 +185,3 @@ class PList:
 
     def __iter__(self):
         return iter(self._list)
-
-

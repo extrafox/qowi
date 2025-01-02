@@ -30,10 +30,17 @@ class Encoder:
         self._encoded = False
         self._response = BitArray()
 
+        self.stats = []
+        self._update_counter = 0
+
+    def record(self, stats_record):
+        self.stats.append(stats_record)
+
     def _gen_run_encoding(self):
         ret = BitArray()
         ret.append(OP_CODE_RUN)
         ret.append(PUnsignedInteger(self._run_length - 1).entropy_coded)
+        self.record({"op_code": "RUN", "run_length": self._run_length, "num_bits": len(ret)})
         return ret
 
     def _gen_cache_encoding(self, difference: np.ndarray):
@@ -47,12 +54,15 @@ class Encoder:
 
         ret.append(OP_CODE_CACHE)
         ret.append(PUnsignedInteger(pos).entropy_coded)
+        self.record({"op_code": "CACHE", "index": pos, "num_bits": len(ret)})
         return ret
 
     def _gen_difference_value_encoding(self, difference: np.ndarray):
         ret = BitArray()
         ret.append(OP_CODE_VALUE)
-        ret.append(PList.from_ndarray(difference).entropy_coded)
+        entropy_coded = PList.from_ndarray(difference).entropy_coded
+        ret.append(entropy_coded)
+        self.record({"op_code": "VALUE", "num_bits": len(ret), "diff_r": format(difference[0], ".2f"), "diff_g": format(difference[1], ".2f"), "diff_b": format(difference[2], ".2f")})
         return ret
 
     def _encode_difference(self, difference: np.ndarray):
@@ -76,9 +86,11 @@ class Encoder:
         if len(cached) == smallest_length:
             self._response.append(cached)
             self._cache.observe(this_token)
+            self._last_token = this_token
         elif len(value) == smallest_length:
             self._response.append(value)
             self._cache.observe(this_token)
+            self._last_token = this_token
         else:
             raise ValueError("Both cached and value encodings were zero length")
 
@@ -86,6 +98,12 @@ class Encoder:
         for v in carry_over:
             v_uint = int((v % 1.0) * 4)
             self._response.append(Bits(uint=v_uint, length=2))
+
+    def update_progress(self, char):
+        if self._update_counter % 80 == 0:
+            print()
+        print(char, end="")
+        self._update_counter += 1
 
     def encode(self) -> BitArray:
         if self._encoded:
@@ -101,10 +119,14 @@ class Encoder:
 
         ### iterate over the wavelet encoding difference and carry-over values ###
 
+        progress_count = 0
         for source_level in range(self._wavelet.num_levels):
+            self.update_progress("|")
             source_length = 2 ** source_level
 
             for i in range(source_length):
+                self.update_progress(".")
+
                 for j in range(source_length):
                     hl = self._wavelet.wavelet[i, source_length + j]
                     lh = self._wavelet.wavelet[source_length + i, j]
@@ -131,5 +153,6 @@ class Encoder:
             self._response.append(run)
             self._run_length = 0
 
+        print("|")
         self._encoded = True
         return self._response
