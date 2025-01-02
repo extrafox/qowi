@@ -27,7 +27,7 @@ class Wavelet:
     def _initialize_from_shape(self, width, height):
         self.width = width
         self.height = height
-        if width == 0 or height == 0:
+        if width == 0 and height == 0:
             self.num_levels = 0
             self.level = 0
         else:

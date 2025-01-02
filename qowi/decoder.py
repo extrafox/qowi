@@ -1,8 +1,7 @@
 import numpy as np
-import sys
-from bitstring import BitArray, Bits, BitStream
+from bitstring import Bits, BitStream
 from qowi.lru_cache import LRUCache
-from qowi.primitives import PList, PUnsignedInteger, PFloat
+from qowi.primitives import PList, PUnsignedInteger
 from qowi.wavelet import Wavelet
 
 CACHE_SIZE = 2048
@@ -31,7 +30,8 @@ class Decoder:
         op_code = self._bitstream.read(1).uint
 
         if op_code == OP_CODE_RUN.uint:
-            self._run_length = entropy_decode(self._bitstream, dtype=PUnsignedInteger).value # no point in incrementing, then decrementing
+            # NOTE: no point in incrementing, then decrementing
+            self._run_length = PList.from_bitstream(self._bitstream, 1, dtype=PUnsignedInteger)[0].value
             return PList.from_token(self._last_token).ndarray
 
         op_code = (op_code << 1) + self._bitstream.read(1).uint

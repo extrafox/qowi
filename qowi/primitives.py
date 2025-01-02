@@ -2,8 +2,8 @@ import numpy as np
 from bitstring import BitArray, Bits, BitStream
 from typing import List
 
-DEFAULT_START_ORDER = 2
-DEFAULT_ORDER_INCREMENT = 3
+INTEGER_ORDER_AND_INCREMENT = (2, 3)
+FLOAT_ORDER_AND_INCREMENT = (5, 3)
 
 class Primitive:
     @property
@@ -36,7 +36,7 @@ class PUnsignedInteger(Primitive):
 
     @property
     def entropy_coded(self) -> Bits:
-        return entropy_encode(self)
+        return entropy_encode(self.uint10, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
 
 class PFloat(Primitive):
     @classmethod
@@ -64,7 +64,7 @@ class PFloat(Primitive):
 
     @property
     def entropy_coded(self) -> Bits:
-        return entropy_encode(self)
+        return entropy_encode(self.uint10, FLOAT_ORDER_AND_INCREMENT[0], FLOAT_ORDER_AND_INCREMENT[1])
 
 class PList:
     @classmethod
@@ -83,7 +83,14 @@ class PList:
     def from_bitstream(cls, bitstream: BitStream, length=3, dtype=PFloat):
         ret = []
         for i in range(length):
-            ret.append(entropy_decode(bitstream, dtype=dtype))
+            if dtype == PFloat:
+                uint10 = entropy_decode(bitstream, FLOAT_ORDER_AND_INCREMENT[0], FLOAT_ORDER_AND_INCREMENT[1])
+                ret.append(PFloat.from_uint10(uint10))
+            elif dtype == PUnsignedInteger:
+                uint10 = entropy_decode(bitstream, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+                ret.append(PUnsignedInteger(uint10))
+            else:
+                raise TypeError("dtype must be a Primitive")
         return PList.from_list(ret)
 
     @classmethod
@@ -178,15 +185,13 @@ class PList:
     def __iter__(self):
         return iter(self._list)
 
-def entropy_encode(primitive: Primitive, start_order=DEFAULT_START_ORDER, order_increment=DEFAULT_ORDER_INCREMENT) -> Bits:
+def entropy_encode(value: int, start_order=2, order_increment=3) -> Bits:
     ret = BitArray()
-    value = primitive.uint10
     order = start_order
     min_value = 0
     while True:
         num_values = 2 ** order
         max_value = min_value + num_values - 1
-
         if min_value <= value <= max_value:
             delta = value - min_value
             ret.append(Bits(uint=0, length=1))
@@ -197,7 +202,7 @@ def entropy_encode(primitive: Primitive, start_order=DEFAULT_START_ORDER, order_
         min_value = max_value + 1
         order += order_increment
 
-def entropy_decode(bit_stream: BitStream, start_order=DEFAULT_START_ORDER, order_increment=DEFAULT_ORDER_INCREMENT, dtype=PFloat) -> Primitive:
+def entropy_decode(bit_stream: BitStream, start_order=2, order_increment=3) -> int:
     order = start_order
     min_value = 0
     while True:
@@ -206,13 +211,8 @@ def entropy_decode(bit_stream: BitStream, start_order=DEFAULT_START_ORDER, order
 
         b = bit_stream.read(1)
         if b.uint == 0:
-            value = min_value + bit_stream.read(order).uint
-            if dtype == PFloat:
-                return PFloat.from_uint10(value)
-            elif dtype == PUnsignedInteger:
-                return PUnsignedInteger(value)
-            else:
-                raise TypeError("dtype must be a Primitive")
+            return min_value + bit_stream.read(order).uint
 
         min_value = max_value + 1
         order += order_increment
+
