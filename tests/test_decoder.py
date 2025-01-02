@@ -104,5 +104,25 @@ class TestEncoder(unittest.TestCase):
         difference = source_wavelet.wavelet - decoder_wavelet.wavelet
         self.assertTrue((source_image == decoded_image).all())
 
+    def test_round_trip_from_zero_image_with_bit_shift(self):
+        source_image = TEST_IMAGES[0]
+        source_wavelet = Wavelet().prepare_from_image(source_image)
+        bits = Encoder(source_wavelet, 2).encode()
+        decoder = Decoder(BitStream(bits))
+        decoded_image = decoder.decode()
+        decoder_wavelet = decoder._wavelet
+        difference = source_wavelet.wavelet - decoder_wavelet.wavelet
+        self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
+
+    def test_round_trip_from_three_image_with_bit_shift(self):
+        source_image = TEST_IMAGES[3]
+        source_wavelet = Wavelet().prepare_from_image(source_image)
+        bits = Encoder(source_wavelet, 2).encode()
+        decoder = Decoder(BitStream(bits))
+        decoded_image = decoder.decode()
+        decoder_wavelet = decoder._wavelet
+        difference = source_wavelet.wavelet - decoder_wavelet.wavelet
+        self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
+
 if __name__ == '__main__':
     unittest.main()

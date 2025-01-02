@@ -2,18 +2,6 @@ import math
 import numpy as np
 from numpy import ndarray
 
-def bit_shift_array(value: ndarray, bit_shift: int):
-    if bit_shift > 0:
-        return np.round(value * 4 / 2 ** bit_shift) * 2 ** bit_shift / 4
-    else:
-        return value
-
-def threshold_array(value: ndarray, threshold: float):
-    if abs(value[0]) < threshold and abs(value[1]) < threshold and abs(value[2]) < threshold:
-        return np.zeros(3, dtype=np.float16)
-    else:
-        return value
-
 class Wavelet:
     def __init__(self, width=0, height=0):
         self.width = 0
@@ -96,7 +84,7 @@ class Wavelet:
 
     # TODO: move the lossy methods to where they modify the wavelet itself
 
-    def as_image(self, bit_shift=0, threshold=0.0):
+    def as_image(self):
         ret_wavelet = self.wavelet.copy()
 
         for source_level in range(self.num_levels):
@@ -109,16 +97,6 @@ class Wavelet:
                     hl = ret_wavelet[i, source_length + j]
                     lh = ret_wavelet[source_length + i, j]
                     hh = ret_wavelet[source_length + i, source_length + j]
-
-                    if bit_shift > 0:
-                        # ll = bit_shift_array(ll, bit_shift)
-                        hl = bit_shift_array(hl, bit_shift)
-                        lh = bit_shift_array(lh, bit_shift)
-                        hh = bit_shift_array(hh, bit_shift)
-                    elif threshold > 0.0:
-                        hl = threshold_array(hl, threshold)
-                        lh = threshold_array(lh, threshold)
-                        hh = threshold_array(hh, threshold)
 
                     a8 = ll + hl + lh + hh
                     b8 = ll - hl + lh - hh
@@ -140,4 +118,14 @@ class Wavelet:
 
             ret_wavelet[:dest_wavelets.shape[0], :dest_wavelets.shape[1]] = dest_wavelets
 
-        return ret_wavelet[:self.width, :self.height].astype(np.uint8)
+        return np.round(ret_wavelet[:self.width, :self.height]).astype(np.uint8)
+
+    def apply_hard_threshold(self, threshold: float):
+        root_element = self.wavelet[0, 0]
+        self.wavelet[self.wavelet < threshold] = 0
+        self.wavelet[0, 0] = root_element
+
+    def apply_soft_threshold(self, threshold: float):
+        root_element = self.wavelet[0, 0]
+        self.wavelet = np.sign(self.wavelet) * np.maximum(np.abs(self.wavelet) - threshold, 0)
+        self.wavelet[0, 0] = root_element

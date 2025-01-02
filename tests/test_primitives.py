@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import unittest
-from qowi.primitives import PFloat, PList, PUnsignedInteger
+from qowi.primitives import PFloat, PInteger, PList, PUnsignedInteger
 
 class TestPrimitives(unittest.TestCase):
 
@@ -14,6 +14,22 @@ class TestPrimitives(unittest.TestCase):
         f = PFloat(-1.5)
         expected_uint10 = 13
         self.assertEqual(f.uint10, expected_uint10)
+
+    def test_pinteger_positive(self):
+        i = PInteger(1)
+        expected_uint10 = 2
+        self.assertEqual(i.uint10, expected_uint10)
+
+    def test_pinteger_negative(self):
+        i = PInteger(-1)
+        expected_uint10 = 3
+        self.assertEqual(i.uint10, expected_uint10)
+
+    def test_plist_from_ndarray_int_token(self):
+        array = np.array([2, -1, 4], dtype=np.int8)
+        plist = PList.from_ndarray(array)
+        expected_token = (4, 3, 8)
+        self.assertEqual(plist.token, expected_token)
 
     def test_plist_from_ndarray_uint_token(self):
         array = np.array([2, 3, 4], dtype=np.uint8)

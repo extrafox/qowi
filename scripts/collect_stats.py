@@ -6,6 +6,8 @@ from qowi.encoder import Encoder
 from qowi.wavelet import Wavelet
 
 TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
+# TEST_IMAGE_PATH = "media/mango_64x64.jpg"
+PRINT_STATS = False
 
 def op_code_frequency(df):
 	# Count occurrences of each op_code
@@ -98,34 +100,51 @@ image = io.imread(TEST_IMAGE_PATH)
 original_image_size = image.shape[0] * image.shape[1] * 3 * 8
 print("Original image shape {} and size (bits): {}".format(image.shape, original_image_size))
 
+print("Preparing lossless encode...")
 w = Wavelet().prepare_from_image(image)
-print("Wavelet prepared.")
+lossless_size = len(Encoder(w).encode())
+print("Lossless size (bits): {} ({}%)".format(lossless_size, round(lossless_size / original_image_size * 100, 2)))
 
-e = Encoder(w)
+bit_shift = 2
+print("Encoding with carry over {}...".format(bit_shift))
+w = Wavelet().prepare_from_image(image)
+bit_shift_threshold_size = len(Encoder(w, bit_shift).encode())
+print("Bit shift (bits): {} ({}%)".format(bit_shift_threshold_size, round(bit_shift_threshold_size / original_image_size * 100, 2)))
 
-print("Encoding...")
-bits = e.encode()
-print("Encoded image size (bits): {}".format(len(bits)))
-print("Compression: {}% of original size".format(round(len(bits) / original_image_size * 100, 2)))
+hard_threshold = 1.0
+print("Applying hard threshold {}...".format(hard_threshold))
+w = Wavelet().prepare_from_image(image)
+w.apply_hard_threshold(hard_threshold)
+hard_threshold_size = len(Encoder(w).encode())
+print("Hard threshold (bits): {} ({}%)".format(hard_threshold_size, round(hard_threshold_size / original_image_size * 100, 2)))
+
+soft_threshold = 1.0
+print("Applying soft threshold {}...".format(soft_threshold))
+w = Wavelet().prepare_from_image(image)
+w.apply_soft_threshold(soft_threshold)
+soft_threshold_size = len(Encoder(w).encode())
+print("Soft threshold (bits): {} ({}%)".format(soft_threshold_size, round(soft_threshold_size / original_image_size * 100, 2)))
+
 
 ###
 ### Output histogram of RGB values
 ###
 
-df = pd.DataFrame(e.stats)
+if PRINT_STATS:
+	df = pd.DataFrame(e.stats)
 
-print()
-print("Frequency of op_code usage")
-print(op_code_frequency(df))
-print()
-# print("Max values for op_codes")
-# print(op_code_max_values(df))
-# print()
-print("RGB Difference Value Frequencies")
-print(rgb_frequency_histogram(df))
-print()
-print("op_code num_bits frequencies")
-print(op_code_num_bits_frequency_histgram(df))
+	print()
+	print("Frequency of op_code usage")
+	print(op_code_frequency(df))
+	print()
+	# print("Max values for op_codes")
+	# print(op_code_max_values(df))
+	# print()
+	print("RGB Difference Value Frequencies")
+	print(rgb_frequency_histogram(df))
+	print()
+	print("op_code num_bits frequencies")
+	print(op_code_num_bits_frequency_histgram(df))
 
 ###
 ### Show Diagrams

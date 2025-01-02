@@ -1,7 +1,7 @@
 import numpy as np
 from bitstring import Bits, BitStream
 from qowi.lru_cache import LRUCache
-from qowi.primitives import PList, PUnsignedInteger
+from qowi.primitives import PFloat, PInteger, PList, PUnsignedInteger
 from qowi.wavelet import Wavelet
 
 CACHE_SIZE = 2048
@@ -10,12 +10,22 @@ OP_CODE_RUN = Bits('0b0')
 OP_CODE_CACHE = Bits('0b10')
 OP_CODE_VALUE = Bits('0b11')
 
+def apply_bit_shift(unshifted_values: PList, bit_shift: int) -> PList:
+    ret = PList()
+    for primitive in unshifted_values:
+        if not isinstance(primitive, PInteger):
+            raise TypeError('Primitive must be a PInteger')
+        shifted = (int(primitive.value) << bit_shift) / 4
+        ret.append(PFloat(shifted))
+    return ret
+
 class Decoder:
     def __init__(self, bitstream: BitStream):
         self._wavelet = None
         self._bitstream = bitstream
         self._run_length = 0
         self._last_token = None
+        self._bit_shift = 0
 
         self._cache = LRUCache(CACHE_SIZE)
         self._cache.observe(ZERO_TOKEN)
@@ -44,7 +54,8 @@ class Decoder:
             return PList.from_token(this_token).ndarray
 
         elif op_code == OP_CODE_VALUE.uint:
-            value = PList.from_bitstream(self._bitstream, 3)
+            unshifted_value = PList.from_bitstream(self._bitstream, 3, dtype=PInteger)
+            value = apply_bit_shift(unshifted_value, self._bit_shift)
             this_token = value.token
             self._last_token = this_token
             self._cache.observe(this_token)
@@ -55,14 +66,28 @@ class Decoder:
     def _decode_carry_over(self) -> np.ndarray:
         # TODO: handle carry over in a cleaner way
 
-        carry_over = np.array([
-            self._bitstream.read(2).uint,
-            self._bitstream.read(2).uint,
-            self._bitstream.read(2).uint,
-        ], dtype=np.float16)
         ret = np.array([0, 0, 0], dtype=np.float16)
-        for i in range(3):
-            ret[i] = carry_over[i] / 4
+
+        if self._bit_shift > 1:
+            return ret
+
+        if self._bit_shift == 0:
+            carry_over = np.array([
+                self._bitstream.read(2).uint,
+                self._bitstream.read(2).uint,
+                self._bitstream.read(2).uint,
+            ], dtype=np.float16)
+            for i in range(3):
+                ret[i] = carry_over[i] / 4
+        else:
+            carry_over = np.array([
+                self._bitstream.read(1).uint,
+                self._bitstream.read(1).uint,
+                self._bitstream.read(1).uint,
+            ], dtype=np.float16)
+            for i in range(3):
+                ret[i] = carry_over[i] / 2
+
         return ret
 
     def decode(self) -> Wavelet:
@@ -74,8 +99,10 @@ class Decoder:
         height = self._bitstream.read(16).uint
         self._wavelet = Wavelet(width, height)
 
+        self._bit_shift = self._bitstream.read(8).uint
+
         # decode the top value of the wavelet
-        self._wavelet.wavelet[0, 0] = PList.from_bitstream(self._bitstream, 3).ndarray
+        self._wavelet.wavelet[0, 0] = PList.from_bitstream(self._bitstream, 3, dtype=PFloat).ndarray
 
         ### iterate over the wavelet encoding difference and carry-over values ###
 

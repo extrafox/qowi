@@ -39,6 +39,32 @@ class PUnsignedInteger(Primitive):
     def entropy_coded(self) -> Bits:
         return entropy_encode(self.uint10, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
 
+class PInteger(Primitive):
+    @classmethod
+    def from_uint10(cls, uint10: int):
+        sign = -1 if uint10 & 1 == 1 else 1
+        magnitude = uint10 >> 1
+        if magnitude == 0 and sign == -1: # a 1 value creates an ambiguity between 0 and -0
+            raise ValueError("A uint10 value of 1 is not allowed")
+        return PInteger(magnitude * sign)
+
+    def __init__(self, value):
+        self._value = value
+
+    @property
+    def uint10(self) -> int:
+        sign = 0 if self._value >= 0 else 1
+        uint10 = abs(self._value << 1) + sign
+        return uint10
+
+    @property
+    def value(self) -> int:
+        return self._value
+
+    @property
+    def entropy_coded(self) -> Bits:
+        return entropy_encode(self.uint10, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+
 class PFloat(Primitive):
     @classmethod
     def from_uint10(cls, uint10: int):
@@ -74,6 +100,8 @@ class PList:
         for element in token:
             if dtype == PFloat:
                 ret.append(PFloat.from_uint10(element))
+            elif dtype == PInteger:
+                ret.append(PInteger.from_uint10(element))
             elif dtype == PUnsignedInteger:
                 ret.append(PUnsignedInteger.from_uint10(element))
             else:
@@ -81,15 +109,18 @@ class PList:
         return PList.from_list(ret)
 
     @classmethod
-    def from_bitstream(cls, bitstream: BitStream, length=3, dtype=PFloat):
+    def from_bitstream(cls, bitstream: BitStream, num_primitives=3, dtype=PInteger):
         ret = []
-        for i in range(length):
+        for i in range(num_primitives):
             if dtype == PFloat:
                 uint10 = entropy_decode(bitstream, FLOAT_ORDER_AND_INCREMENT[0], FLOAT_ORDER_AND_INCREMENT[1])
                 ret.append(PFloat.from_uint10(uint10))
+            elif dtype == PInteger:
+                uint10 = entropy_decode(bitstream, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+                ret.append(PInteger.from_uint10(uint10))
             elif dtype == PUnsignedInteger:
                 uint10 = entropy_decode(bitstream, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
-                ret.append(PUnsignedInteger(uint10))
+                ret.append(PUnsignedInteger.from_uint10(uint10))
             else:
                 raise TypeError("dtype must be a Primitive")
         return PList.from_list(ret)
@@ -101,6 +132,8 @@ class PList:
 
         if array.dtype.kind == "f":
             dtype = PFloat
+        elif array.dtype.kind == "i":
+            dtype = PInteger
         elif array.dtype.kind == "u":
             dtype = PUnsignedInteger
         else:
@@ -109,9 +142,11 @@ class PList:
         ret = PList()
         for element in array:
             if dtype == PFloat:
-                ret._list.append(PFloat(element))
+                ret.append(PFloat(element))
+            elif dtype == PInteger:
+                ret.append(PInteger(element))
             elif dtype == PUnsignedInteger:
-                ret._list.append(PUnsignedInteger(element))
+                ret.append(PUnsignedInteger(element))
             else:
                 raise TypeError("unsupported data type {}".format(dtype))
 
@@ -125,14 +160,12 @@ class PList:
         dtype = type(array[0])
         ret = PList()
         for element in array:
-            if dtype == PFloat:
-                ret._list.append(element)
-            elif dtype == PUnsignedInteger:
-                ret._list.append(element)
+            if dtype == PInteger or dtype == PUnsignedInteger or dtype == PFloat:
+                ret.append(element)
             elif dtype == float:
-                ret._list.append(PFloat(element))
+                ret.append(PFloat(element))
             elif dtype == int:
-                ret._list.append(PUnsignedInteger(element))
+                ret.append(PUnsignedInteger(element))
             else:
                 raise TypeError("unsupported data type {}".format(data_type))
 
@@ -153,7 +186,10 @@ class PList:
 
     @property
     def ndarray(self):
-        if type(self._list[0]) == PUnsignedInteger:
+        list_dtype = type(self._list[0])
+        if list_dtype == PInteger:
+            dtype = np.int16
+        elif list_dtype == PUnsignedInteger:
             dtype = np.uint16
         else:
             dtype = np.float16
@@ -170,6 +206,9 @@ class PList:
         for primitive in self._list:
             ret.append(primitive.entropy_coded)
         return ret
+
+    def append(self, primitive: Primitive):
+        self._list.append(primitive)
 
     def __getitem__(self, i):
         return self._list[i]
