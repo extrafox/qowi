@@ -5,7 +5,7 @@ from skimage import io
 from qowi.encoder import Encoder
 from qowi.wavelet import Wavelet
 
-TEST_IMAGE_PATH = "media/mango_512x512.jpg"
+TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
 
 def op_code_frequency(df):
 	# Count occurrences of each op_code
@@ -17,6 +17,25 @@ def op_code_frequency(df):
 	
 	return ret
 	
+def op_code_max_values(df):
+	# Fill missing values with 0 and convert to integers
+	df['run_length'] = df['run_length'].fillna(0).astype(int)
+	df['index'] = df['index'].fillna(0).astype(int)
+
+	# Calculate max run_length for RUN
+	max_run_length = df[df['op_code'] == 'RUN']['run_length'].max()
+
+	# Calculate max index for CACHE
+	max_index_cache = df[df['op_code'] == 'CACHE']['index'].max()
+
+	# Create a result table
+	ret = pd.DataFrame({
+		'Metric': ['Max Run Length (RUN)', 'Max Index (CACHE)'],
+		'Value': [max_run_length, max_index_cache]
+	})
+	
+	return ret
+
 def rgb_frequency_histogram(df):
     # Convert diff columns to float
     df['diff_r'] = df['diff_r'].astype(float)
@@ -77,7 +96,7 @@ print("Processing image: {}".format(TEST_IMAGE_PATH))
 
 image = io.imread(TEST_IMAGE_PATH)
 original_image_size = image.shape[0] * image.shape[1] * 3 * 8
-print("Original image size (bits): {}".format(original_image_size))
+print("Original image shape {} and size (bits): {}".format(image.shape, original_image_size))
 
 w = Wavelet().prepare_from_image(image)
 print("Wavelet prepared.")
@@ -99,6 +118,9 @@ print()
 print("Frequency of op_code usage")
 print(op_code_frequency(df))
 print()
+# print("Max values for op_codes")
+# print(op_code_max_values(df))
+# print()
 print("RGB Difference Value Frequencies")
 print(rgb_frequency_histogram(df))
 print()

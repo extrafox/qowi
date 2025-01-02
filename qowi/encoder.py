@@ -11,12 +11,24 @@ OP_CODE_RUN = Bits('0b0')
 OP_CODE_CACHE = Bits('0b10')
 OP_CODE_VALUE = Bits('0b11')
 
-def min_non_zero(*values) -> int:
-    smallest = sys.maxsize
-    for v in values:
-        if 0 < v < smallest:
-            smallest = v
-    return smallest
+def gen_difference_value_encoding(difference: np.ndarray):
+    ret = BitArray()
+    ret.append(OP_CODE_VALUE)
+    entropy_coded = PList.from_ndarray(difference).entropy_coded
+    ret.append(entropy_coded)
+    return ret
+
+def gen_cache_encoding(position):
+    ret = BitArray()
+    ret.append(OP_CODE_CACHE)
+    ret.append(PUnsignedInteger(position).entropy_coded)
+    return ret
+
+def gen_run_encoding(run_length):
+    ret = BitArray()
+    ret.append(OP_CODE_RUN)
+    ret.append(PUnsignedInteger(run_length - 1).entropy_coded)
+    return ret
 
 class Encoder:
     def __init__(self, wavelet: Wavelet):
@@ -36,35 +48,6 @@ class Encoder:
     def record(self, stats_record):
         self.stats.append(stats_record)
 
-    def _gen_run_encoding(self):
-        ret = BitArray()
-        ret.append(OP_CODE_RUN)
-        ret.append(PUnsignedInteger(self._run_length - 1).entropy_coded)
-        self.record({"op_code": "RUN", "run_length": self._run_length, "num_bits": len(ret)})
-        return ret
-
-    def _gen_cache_encoding(self, difference: np.ndarray):
-        ret = BitArray()
-
-        try:
-            this_token = PList.from_ndarray(difference).token
-            pos = self._cache.index(this_token)
-        except ValueError:
-            return ret
-
-        ret.append(OP_CODE_CACHE)
-        ret.append(PUnsignedInteger(pos).entropy_coded)
-        self.record({"op_code": "CACHE", "index": pos, "num_bits": len(ret)})
-        return ret
-
-    def _gen_difference_value_encoding(self, difference: np.ndarray):
-        ret = BitArray()
-        ret.append(OP_CODE_VALUE)
-        entropy_coded = PList.from_ndarray(difference).entropy_coded
-        ret.append(entropy_coded)
-        self.record({"op_code": "VALUE", "num_bits": len(ret), "diff_r": format(difference[0], ".2f"), "diff_g": format(difference[1], ".2f"), "diff_b": format(difference[2], ".2f")})
-        return ret
-
     def _encode_difference(self, difference: np.ndarray):
         this_token = PList.from_ndarray(difference).token
 
@@ -74,23 +57,33 @@ class Encoder:
 
         ### this_pixel does not equal last_pixel ###
 
-        if self._run_length > 1:
-            run = self._gen_run_encoding()
+        if self._run_length > 0:
+            run = gen_run_encoding(self._run_length)
             self._response.append(run)
             self._run_length = 0
+            self.record({"op_code": "RUN", "run_length": self._run_length, "num_bits": len(run)})
 
-        cached = self._gen_cache_encoding(difference)
-        value = self._gen_difference_value_encoding(difference)
+        try:
+            this_token = PList.from_ndarray(difference).token
+            pos = self._cache.index(this_token)
+            cached = gen_cache_encoding(pos)
+        except ValueError:
+            pos = -1
+            cached = Bits()
 
-        smallest_length = min_non_zero(len(cached), len(value))
-        if len(cached) == smallest_length:
+        value = gen_difference_value_encoding(difference)
+
+        if 0 < len(cached) < len(value):
             self._response.append(cached)
             self._cache.observe(this_token)
             self._last_token = this_token
-        elif len(value) == smallest_length:
+            self.record({"op_code": "CACHE", "index": pos, "num_bits": len(cached)})
+        elif 0 < len(value):
             self._response.append(value)
             self._cache.observe(this_token)
             self._last_token = this_token
+            self.record({"op_code": "VALUE", "num_bits": len(value), "diff_r": format(difference[0], ".2f"),
+                         "diff_g": format(difference[1], ".2f"), "diff_b": format(difference[2], ".2f")})
         else:
             raise ValueError("Both cached and value encodings were zero length")
 
@@ -149,7 +142,7 @@ class Encoder:
 
         # flush the run length
         if self._run_length > 1:
-            run = self._gen_run_encoding()
+            run = gen_run_encoding(self._run_length)
             self._response.append(run)
             self._run_length = 0
 

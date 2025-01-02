@@ -94,6 +94,8 @@ class Wavelet:
 
         return self
 
+    # TODO: move the lossy methods to where they modify the wavelet itself
+
     def as_image(self, bit_shift=0, threshold=0.0):
         ret_wavelet = self.wavelet.copy()
 
