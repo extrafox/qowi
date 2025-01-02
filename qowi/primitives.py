@@ -1,5 +1,6 @@
 import numpy as np
 from bitstring import BitArray, Bits, BitStream
+from qowi.entropy import entropy_decode, entropy_encode
 from typing import List
 
 INTEGER_ORDER_AND_INCREMENT = (2, 3)
@@ -185,34 +186,4 @@ class PList:
     def __iter__(self):
         return iter(self._list)
 
-def entropy_encode(value: int, start_order=2, order_increment=3) -> Bits:
-    ret = BitArray()
-    order = start_order
-    min_value = 0
-    while True:
-        num_values = 2 ** order
-        max_value = min_value + num_values - 1
-        if min_value <= value <= max_value:
-            delta = value - min_value
-            ret.append(Bits(uint=0, length=1))
-            ret.append(Bits(uint=delta, length=order))
-            return ret
-
-        ret.append(Bits(uint=1, length=1))
-        min_value = max_value + 1
-        order += order_increment
-
-def entropy_decode(bit_stream: BitStream, start_order=2, order_increment=3) -> int:
-    order = start_order
-    min_value = 0
-    while True:
-        num_values = 2 ** order
-        max_value = min_value + num_values - 1
-
-        b = bit_stream.read(1)
-        if b.uint == 0:
-            return min_value + bit_stream.read(order).uint
-
-        min_value = max_value + 1
-        order += order_increment
 
