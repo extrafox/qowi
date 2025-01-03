@@ -2,6 +2,9 @@ import numpy as np
 import qowi.uint10 as uint10
 import unittest
 
+from qowi.uint10 import to_float_array
+
+
 class TestUint10(unittest.TestCase):
 
     def test_round_trip_with_integers(self):
@@ -9,10 +12,12 @@ class TestUint10(unittest.TestCase):
             observed = uint10.to_int(uint10.from_int(expected))
             self.assertEqual(expected, observed)
 
+
     def test_round_trip_with_floats(self):
         for expected in np.arange(-127.5, 128, 0.25):
             observed = uint10.to_float(uint10.from_float(expected))
             self.assertEqual(expected, observed)
+
 
     def test_round_trip_with_float_array(self):
         given = np.array([-2., -1.75, -1.5, -1.25, -1.1, -1., 0., 1., 1.1, 1.25, 1.5, 1.75, 2.])
@@ -20,15 +25,36 @@ class TestUint10(unittest.TestCase):
         expected = np.array([-2., -1.75, -1.5, -1.25, -1., -1., 0., 1., 1., 1.25, 1.5, 1.75, 2.])
         self.assertTrue((computed == expected).all())
 
+
     def test_round_trip_with_int_array(self):
         expected = np.array([-2, -1, 0, 1, 2])
         computed = uint10.to_int_array(uint10.from_int_array(expected))
         self.assertTrue((computed == expected).all())
 
+
     def test_round_trip_with_float_array(self):
         expected = np.array([-2., -1.75, -1.5, -1.25, -1., 0., 1., 1.25, 1.5, 1.75, 2.])
         computed = uint10.to_float_array(uint10.from_float_array(expected))
         self.assertTrue((computed == expected).all())
+
+
+    def test_right_bit_shift(self):
+        given = np.array([-2., -1.75, -1.5, -1.25, -1.1, -1., 0., 1., 1.1, 1.25, 1.5, 1.75, 2.])
+        expected = np.array([-0.5, -0.25, -0.25, -0.25, -0.25, -0.25,  0., 0.25, .25,  0.25,  0.25,  0.25,  0.5])
+        uint_array = uint10.from_float_array(given)
+        shifted = uint10.right_bit_shift(uint_array, 2)
+        observed = to_float_array(shifted)
+        self.assertTrue(all(expected == observed))
+
+
+    def test_right_bit_shift(self):
+        given = np.array([-0.5, -0.25, 0., 0.25,  0.5])
+        expected = np.array([-2, -1, 0, 1, 2])
+        uint_array = uint10.from_float_array(given)
+        shifted = uint10.left_bit_shift(uint_array, 2)
+        observed = to_float_array(shifted)
+        self.assertTrue(all(expected == observed))
+
 
 if __name__ == '__main__':
     unittest.main()

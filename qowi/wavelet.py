@@ -86,6 +86,9 @@ class Wavelet:
     def as_uint10_array(self):
         return uint10.from_float_array(self.wavelet)
 
+    def from_uint10_array(self, uint10_array):
+        self.wavelet = uint10.to_float_array(uint10_array)
+
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
 

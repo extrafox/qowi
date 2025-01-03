@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from qowi.encoder import Encoder, apply_right_bit_shift
+from qowi.encoder import Encoder
 from qowi.wavelet import Wavelet
 
 TEST_IMAGES = [
@@ -95,24 +95,6 @@ class TestEncoder(unittest.TestCase):
         e = Encoder(w)
         bits = e.encode()
         self.assertGreater(len(bits), 32)
-
-    def test_apply_bit_shift_by_two(self):
-        v = np.array([0., 1., -1., 1.25, -1.25, 1.75, -1.75, 2., -2.])
-        s = apply_right_bit_shift(v, 2)
-        expected = np.array([0, 1, -1, 1, -1, 1, -1, 2, -2])
-        self.assertTrue((s == expected).all())
-
-    def test_apply_bit_shift_by_one(self):
-        v = np.array([0., 1., -1., 1.25, -1.25, 1.75, -1.75, 2., -2.])
-        s = apply_right_bit_shift(v, 1)
-        expected = np.array([0, 2, -2, 2, -2, 3, -3, 4, -4])
-        self.assertTrue((s == expected).all())
-
-    def test_apply_bit_shift_by_zero(self):
-        v = np.array([0., 1., -1., 1.25, -1.25, 1.75, -1.75, 2., -2.])
-        s = apply_right_bit_shift(v, 0)
-        expected = np.array([0, 4, -4, 5, -5, 7, -7, 8, -8])
-        self.assertTrue((s == expected).all())
 
 if __name__ == '__main__':
     unittest.main()
