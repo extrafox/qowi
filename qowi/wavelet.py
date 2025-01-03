@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import qowi.uint10 as uint10
 from numpy import ndarray
 
 class Wavelet:
@@ -82,7 +83,8 @@ class Wavelet:
 
         return self
 
-    # TODO: move the lossy methods to where they modify the wavelet itself
+    def as_uint10_array(self):
+        return uint10.from_float_array(self.wavelet)
 
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
@@ -129,3 +131,4 @@ class Wavelet:
         root_element = self.wavelet[0, 0]
         self.wavelet = np.sign(self.wavelet) * np.maximum(np.abs(self.wavelet) - threshold, 0)
         self.wavelet[0, 0] = root_element
+
