@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 from bitstring import BitArray, Bits
 from qowi.lru_cache import LRUCache
 from qowi.primitives import PFloat, PList, PUnsignedInteger
@@ -30,18 +29,19 @@ def gen_run_encoding(run_length):
     ret.append(PUnsignedInteger(run_length - 1).entropy_coded)
     return ret
 
-def apply_bit_shift(difference: np.ndarray, bit_shift: int) -> np.ndarray:
-    return (difference * 4).astype(np.int16) >> bit_shift
+def apply_right_bit_shift(difference: np.ndarray, bit_shift: int) -> np.ndarray:
+    difference_int = (difference * 4).astype(np.int16)
+    shifted = np.where(difference_int >= 0, difference_int >> bit_shift, -((-difference_int) >> bit_shift))
+    return shifted.astype(np.int16)
 
 class Encoder:
-    def __init__(self, wavelet: Wavelet, bit_shift=0):
+    def __init__(self, wavelet: Wavelet, bit_shift=0, carry_over_bits=2):
         self._wavelet = wavelet
         self._run_length = 0
         self._last_token = None
 
-        if bit_shift > 7:
-            raise Exception('The maximum bit shift is 7')
-        self._bit_shift = bit_shift
+        self._bit_shift = max(0, min(bit_shift, 7))
+        self._carry_over_bits = max(0, min(carry_over_bits, 2))
 
         self._cache = LRUCache(CACHE_SIZE)
         self._cache.observe(ZERO_TOKEN)
@@ -56,9 +56,8 @@ class Encoder:
         self.stats.append(stats_record)
 
     def _encode_difference(self, difference: np.ndarray):
-        shifted_difference = apply_bit_shift(difference, self._bit_shift)
-
-        this_token = PList.from_ndarray(shifted_difference).token
+        shifted_difference = apply_right_bit_shift(difference, self._bit_shift)
+        this_token = PList.from_ndarray(difference).token # PList of PFloat
 
         if this_token == self._last_token:
             self._run_length += 1
@@ -69,8 +68,8 @@ class Encoder:
         if self._run_length > 0:
             run = gen_run_encoding(self._run_length)
             self._response.append(run)
-            self._run_length = 0
             self.record({"op_code": "RUN", "run_length": self._run_length, "num_bits": len(run)})
+            self._run_length = 0
 
         try:
             pos = self._cache.index(this_token)
@@ -81,12 +80,12 @@ class Encoder:
 
         value = gen_difference_value_encoding(shifted_difference)
 
-        if 0 < len(cached) < len(value):
+        if 0 < len(cached) < len(value): # CACHED is shortest
             self._response.append(cached)
             self._cache.observe(this_token)
             self._last_token = this_token
             self.record({"op_code": "CACHE", "index": pos, "num_bits": len(cached)})
-        elif 0 < len(value):
+        elif 0 < len(value): # VALUE is shortest
             self._response.append(value)
             self._cache.observe(this_token)
             self._last_token = this_token
@@ -96,11 +95,21 @@ class Encoder:
             raise ValueError("Both cached and value encodings were zero length")
 
     def _encode_carry_over(self, carry_over: np.ndarray):
+        if self._carry_over_bits == 0:
+            return
+
         for v in carry_over:
+            if v < 0 or v > 2:
+                raise ValueError("Carry over {} must be between 0 and 2".format(v))
+
             v_uint = int((v % 1.0) * 4)
-            if self._bit_shift == 0:
+
+            if v_uint < 0 or v_uint > 3:
+                raise ValueError("Carry over v_uint {} must be between 0 and 3".format(v))
+
+            if self._carry_over_bits == 2:
                 self._response.append(Bits(uint=v_uint, length=2))
-            elif self._bit_shift == 1:
+            elif self._carry_over_bits == 1:
                 v_uint = v_uint >> 1
                 self._response.append(Bits(uint=v_uint, length=1))
 
@@ -117,7 +126,8 @@ class Encoder:
         # encode configuration values
         self._response.append(Bits(uint=self._wavelet.width, length=16))
         self._response.append(Bits(uint=self._wavelet.height, length=16))
-        self._response.append(Bits(uint=self._bit_shift, length=8))
+        self._response.append(Bits(uint=self._bit_shift, length=4))
+        self._response.append(Bits(uint=self._carry_over_bits, length=2))
 
         # encode the top value of the wavelet
         root_pixel = PList.from_ndarray(self._wavelet.wavelet[0, 0])
@@ -157,6 +167,7 @@ class Encoder:
         if self._run_length > 1:
             run = gen_run_encoding(self._run_length)
             self._response.append(run)
+            self.record({"op_code": "RUN", "run_length": self._run_length, "num_bits": len(run)})
             self._run_length = 0
 
         print("|")

@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
+from bitstring import BitStream
 from matplotlib import pyplot as plt
-from skimage import io
+from qowi.decoder import Decoder
 from qowi.encoder import Encoder
 from qowi.wavelet import Wavelet
+from skimage import io
 
 TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
-# TEST_IMAGE_PATH = "media/mango_64x64.jpg"
+# TEST_IMAGE_PATH = "media/mango_512x512.jpg"
 PRINT_STATS = True
 
 def op_code_frequency(df):
@@ -90,24 +92,72 @@ def op_code_num_bits_frequency_histgram(df):
 
 	return ret
 
+def signal_to_noise(source, compressed):
+	signal_power = np.mean(source ** 2)
+	noise_power = np.mean((source - compressed) ** 2)
+	if noise_power == 0:
+		return float('inf')  # Perfect reconstruction
+	snr = 10 * np.log10(signal_power / noise_power)
+	return snr
+
+
+def display_images_side_by_side(image1, image2, title1="Source", title2="Compressed"):
+	"""
+    Displays two images side by side using matplotlib.
+
+    Parameters:
+        image1 (numpy.ndarray): The first image to display.
+        image2 (numpy.ndarray): The second image to display.
+        title1 (str): Title for the first image.
+        title2 (str): Title for the second image.
+    """
+	# Ensure both images are NumPy arrays
+	image1 = np.asarray(image1)
+	image2 = np.asarray(image2)
+
+	# Create a figure with two subplots
+	fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+	# Display the first image
+	axes[0].imshow(image1, cmap="gray" if len(image1.shape) == 2 else None)
+	axes[0].axis('off')  # Turn off axes
+	axes[0].set_title(title1)
+
+	# Display the second image
+	axes[1].imshow(image2, cmap="gray" if len(image2.shape) == 2 else None)
+	axes[1].axis('off')  # Turn off axes
+	axes[1].set_title(title2)
+
+	# Adjust layout and show the plot
+	plt.tight_layout()
+	plt.show()
+
 ###
 ### Prepare image and intermediates
 ###
 
 print("Processing image: {}".format(TEST_IMAGE_PATH))
 
-image = io.imread(TEST_IMAGE_PATH)
-original_image_size = image.shape[0] * image.shape[1] * 3 * 8
-print("Original image shape {} and size (bits): {}".format(image.shape, original_image_size))
+source_image = io.imread(TEST_IMAGE_PATH)
+original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
+print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-hard_threshold = 1.0
-bit_shift = 2
-print("Encoding with bit shift {} and hard threshold {}...".format(bit_shift, hard_threshold))
-w = Wavelet().prepare_from_image(image)
+hard_threshold = 1
+bit_shift = 1
+carry_over_bits = 1
+print("Encoding with bit shift {}, carry over {} and hard threshold {}...".format(bit_shift, carry_over_bits, hard_threshold))
+w = Wavelet().prepare_from_image(source_image)
 w.apply_hard_threshold(hard_threshold)
-e = Encoder(w, bit_shift)
-bit_shift_threshold_size = len(e.encode())
+e = Encoder(w, bit_shift, carry_over_bits)
+encoded_image = e.encode()
+bit_shift_threshold_size = len(encoded_image)
 print("Bit shift (bits): {} ({}%)".format(bit_shift_threshold_size, round(bit_shift_threshold_size / original_image_size * 100, 2)))
+print("Computing signal to noise ratio (SNR)...")
+d = Decoder(BitStream(encoded_image))
+decoded_image = d.decode()
+print("SNR: {}".format(signal_to_noise(source_image, decoded_image)))
+
+display_images_side_by_side(source_image, decoded_image)
 
 ###
 ### Output histogram of RGB values

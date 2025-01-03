@@ -1,8 +1,9 @@
 import numpy as np
 import unittest
 from bitstring import BitStream
-from qowi.decoder import Decoder
+from qowi.decoder import Decoder, apply_left_bit_shift
 from qowi.encoder import Encoder
+from qowi.primitives import PList
 from qowi.wavelet import Wavelet
 
 TEST_IMAGES = [
@@ -52,7 +53,7 @@ TEST_IMAGES = [
         [[162, 153, 143], [188, 178, 166], [198, 183, 165], [219, 194, 168]],
         [[249, 234, 216], [240, 224, 204], [190, 168, 143], [120, 109, 91]],
     ], dtype = 'uint8'),
-        np.array([
+    np.array([
         [[95, 108, 109], [97, 109, 108], [93, 106, 109], [95, 111, 115], [180, 202, 215], [170, 195, 214], [175, 206, 225], [189, 216, 233]],
         [[91, 85, 76], [83, 75, 65], [91, 93, 88], [83, 85, 80], [179, 199, 211], [176, 200, 220], [177, 206, 225], [191, 216, 233]],
         [[83, 73, 63], [74, 66, 56], [80, 87, 86], [79, 87, 87], [164, 180, 191], [179, 200, 217], [175, 197, 209], [185, 205, 218]],
@@ -62,6 +63,24 @@ TEST_IMAGES = [
         [[190, 171, 154], [219, 206, 194], [67, 65, 61], [84, 73, 57], [101, 84, 66], [187, 160, 134], [177, 148, 124], [133, 117, 104]],
         [[218, 205, 191], [216, 205, 192], [162, 153, 143], [188, 178, 166], [198, 183, 165], [219, 194, 168], [207, 183, 159], [175, 162, 149]],
     ], dtype = 'uint8'),
+    np.array([
+        [[218, 111,  28],  [126, 238,  24],  [198,  57, 226],  [ 75, 132,  92],  [ 11,  11,  55],  [ 19,  25, 194],  [112,  87,  28],  [247, 236,  12],  [ 55, 211,   0],  [149,  70, 195],  [ 10,  89, 201],  [146,  78, 195],  [200, 181, 156],  [195,  54, 207],  [231, 228, 173],  [ 53, 249,  21]],
+        [[245,  10, 212],  [121, 137, 123],  [193,  28, 232],  [146,   8, 105],  [192, 111,  72],  [250, 223, 112],  [ 71, 110,  56],  [ 58,  88, 143],  [205, 124, 152],  [104, 154, 113],  [108, 226,  60],  [ 45,  14, 113],  [ 93,  28, 227],  [170, 237,  84],  [201, 115,  15],  [ 91,  60, 161]],
+        [[ 18, 187, 180],  [212, 191,  30],  [ 41,  68, 200],  [ 48, 105,  17],  [ 90, 134, 229],  [ 92, 188, 216],  [174, 230,  40],  [ 63, 152,  23],  [209, 182, 112],  [126,  55,  69],  [252,  67, 201],  [111, 104, 251],  [230,  27,  33],  [128,  14,   1],  [ 72, 103,  89],  [ 76, 222,  18]],
+        [[175, 147,  92],  [245, 118, 226],  [238,  27,   4],  [212, 242,  14],  [181, 211,   8],  [165, 126, 137],  [226,  64,  31],  [114, 139,  85],  [254, 156,   7],  [208,  46,  16],  [ 58, 226,  70],  [ 84,  89, 203],  [156,  66, 141],  [ 91, 178,  13],  [213, 202, 242],  [112, 171,   5]],
+        [[171,  17, 237],  [ 47, 142, 203],  [108, 202, 124],  [ 33,  69,  18],  [127,  12,  24],  [ 84, 211, 182],  [233, 132, 111],  [ 98, 188, 194],  [182,  85, 199],  [ 29,  74,  94],  [177, 239, 183],  [154, 167,  96],  [152,  88, 126],  [170, 183, 190],  [166, 233, 250],  [220,  50, 235]],
+        [[223, 110,  20],  [255,   3, 100],  [181,  33, 250],  [ 69, 194, 140],  [ 99,  57, 132],  [203,  89, 139],  [ 89,  73,  46],  [185, 234, 136],  [  2, 192, 106],  [176,  63,  69],  [ 52, 181,  69],  [ 83,  39,  91],  [153,  80, 145],  [211, 153, 227],  [ 39,  64,  50],  [213, 114, 243]],
+        [[243, 179, 224],  [252, 162, 225],  [ 14,  61, 135],  [ 36, 101,  24],  [ 36,  12,  41],  [ 63, 101,  32],  [ 57, 255,   6],  [142,  76,  17],  [ 22, 188, 131],  [ 49,  84,  62],  [152, 137, 118],  [216, 130, 235],  [187, 146,  33],  [238, 130, 107],  [ 74,  56,  12],  [104,  14, 235]],
+        [[190, 107,  56],  [ 41,  50,  38],  [  3, 163, 242],  [ 39, 223, 247],  [160, 225, 184],  [191, 247, 150],  [226,  42,   3],  [100, 205,  22],  [ 65,  36, 209],  [ 46, 179,  62],  [202, 186, 185],  [181, 204, 167],  [224, 101,  97],  [228,  66,  46],  [204,  85, 164],  [ 91, 114, 193]],
+        [[185,  91, 201],  [ 97,  82, 235],  [ 26, 175, 166],  [103, 178,  38],  [ 29, 108, 147],  [141,  13,  97],  [211, 198,  52],  [244, 203,  53],  [215,  83, 215],  [ 44, 143, 113],  [ 56,  72, 219],  [ 30,  79,  50],  [ 89, 248, 124],  [243, 191,   7],  [159, 171, 153],  [225,  27, 157]],
+        [[237,  54,  47],  [236, 164, 133],  [113,  42, 119],  [ 84, 205,  33],  [ 44, 133, 183],  [134,  84,  91],  [184,  70,  32],  [178, 147, 239],  [ 83,   6,   5],  [194,   3, 129],  [ 79, 142, 186],  [227,  62, 140],  [ 38, 160, 196],  [ 86, 214,  38],  [  1,  23,  48],  [113,  22, 108]],
+        [[ 82, 252, 114],  [210,  54,  45],  [ 94, 199,  18],  [  2, 251,  15],  [194, 153,  56],  [113, 222, 157],  [229, 172, 142],  [ 79, 105,  18],  [208,  54,  72],  [ 43, 165,  76],  [102, 118, 100],  [ 63, 221, 191],  [161, 161,  23],  [222, 114,   4],  [246,   4,  77],  [150, 216, 244]],
+        [[110,  80,  84],  [ 86, 231, 245],  [ 88, 190,  39],  [155, 218, 125],  [145,  31,  91],  [237, 132,  40],  [190, 119,  18],  [200, 211,  78],  [129,   7,  68],  [ 57, 155,  83],  [124,  28, 202],  [ 41, 201,  13],  [161, 175, 206],  [ 13, 104,   6],  [163, 122, 123],  [182,  53,  13]],
+        [[197, 140, 145],  [ 12, 206, 249],  [ 91,  80,  72],  [ 14,  14, 125],  [221, 210, 247],  [175,   5,  16],  [218,  98, 236],  [ 34,  60, 169],  [ 52, 151,   9],  [122,  41, 192],  [126, 126,  62],  [237, 146, 139],  [174, 196,  53],  [ 52, 221, 221],  [  1,  44,  17],  [160, 233, 130]],
+        [[ 74, 109,   8],  [ 14, 213,  43],  [130, 157, 255],  [ 40, 230,   0],  [185, 128, 199],  [ 56, 121, 131],  [ 62, 116,  95],  [148,  58, 140],  [ 31, 124,  51],  [  5, 181,   4],  [ 77, 148, 156],  [ 26, 110, 164],  [ 62, 188, 130],  [107, 100,  92],  [ 86,  18, 195],  [165,  20,  84]],
+        [[ 14, 134,  15],  [ 93,  74, 126],  [ 12, 238,  98],  [236, 207,  13],  [165, 119,  23],  [111, 244, 107],  [ 57,  75, 231],  [100,  38,  55],  [106, 117,  94],  [194,  12, 239],  [189,  13, 120],  [224, 126, 127],  [145,  15,  59],  [ 58, 255,  52],  [225, 167,  31],  [130, 194, 229]],
+        [[117, 161,  26],  [169, 167, 221],  [139, 176,  81],  [207,  95,  81],  [190, 167, 170],  [ 81,  56,  70],  [170, 221,  91],  [ 16, 201, 141],  [ 71, 130, 197],  [177,  88,  88],  [245, 251, 127],  [ 97,  90, 148],  [197,  94,  64],  [ 76, 163, 121],  [102,  10, 209],  [176, 114, 223]],
+    ], dtype=np.uint8),
 ]
 
 class TestEncoder(unittest.TestCase):
@@ -104,7 +123,7 @@ class TestEncoder(unittest.TestCase):
         difference = source_wavelet.wavelet - decoder_wavelet.wavelet
         self.assertTrue((source_image == decoded_image).all())
 
-    def test_round_trip_from_zero_image_with_bit_shift(self):
+    def test_round_trip_from_zero_image_with_bit_shift_two(self):
         source_image = TEST_IMAGES[0]
         source_wavelet = Wavelet().prepare_from_image(source_image)
         bits = Encoder(source_wavelet, 2).encode()
@@ -114,7 +133,7 @@ class TestEncoder(unittest.TestCase):
         difference = source_wavelet.wavelet - decoder_wavelet.wavelet
         self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
 
-    def test_round_trip_from_three_image_with_bit_shift(self):
+    def test_round_trip_from_three_image_with_bit_shift_two(self):
         source_image = TEST_IMAGES[3]
         source_wavelet = Wavelet().prepare_from_image(source_image)
         bits = Encoder(source_wavelet, 2).encode()
@@ -123,6 +142,45 @@ class TestEncoder(unittest.TestCase):
         decoder_wavelet = decoder._wavelet
         difference = source_wavelet.wavelet - decoder_wavelet.wavelet
         self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
+
+    def test_round_trip_from_three_image_with_bit_shift_one(self):
+        source_image = TEST_IMAGES[3]
+        source_wavelet = Wavelet().prepare_from_image(source_image)
+        bits = Encoder(source_wavelet, 1).encode()
+        decoder = Decoder(BitStream(bits))
+        decoded_image = decoder.decode()
+        decoder_wavelet = decoder._wavelet
+        difference = source_wavelet.wavelet - decoder_wavelet.wavelet
+        self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
+
+    def test_round_trip_from_three_image_with_bit_shift_seven(self):
+        source_image = TEST_IMAGES[7]
+        source_wavelet = Wavelet().prepare_from_image(source_image)
+        source_wavelet.apply_hard_threshold(1)
+        bits = Encoder(source_wavelet, 2, 1).encode()
+        decoder = Decoder(BitStream(bits))
+        decoded_image = decoder.decode()
+        decoder_wavelet = decoder._wavelet
+        difference = source_wavelet.wavelet - decoder_wavelet.wavelet
+        self.assertTrue(True) # TODO: Need to figure out how to validate a correct tranform
+
+    def test_apply_bit_shift_by_two(self):
+        v = np.array([0, 1, -1, 2, -2, 3, -3, 4, -4])
+        s = apply_left_bit_shift(v, 2)
+        expected = np.array([0., 1., -1., 2., -2., 3., -3., 4, -4])
+        self.assertTrue((s == expected).all())
+
+    def test_apply_bit_shift_by_one(self):
+        v = np.array([0, 1, -1, 2, -2, 3, -3, 4, -4])
+        s = apply_left_bit_shift(v, 1)
+        expected = np.array([0., 0.5, -0.5, 1., -1., 1.5, -1.5, 2., -2.])
+        self.assertTrue((s == expected).all())
+
+    def test_apply_bit_shift_by_zero(self):
+        v = np.array([0, 1, -1, 2, -2, 3, -3, 4, -4])
+        s = apply_left_bit_shift(v, 0)
+        expected = np.array([0, 0.25, -0.25, 0.5, -0.5, 0.75, -0.75, 1, -1])
+        self.assertTrue((s == expected).all())
 
 if __name__ == '__main__':
     unittest.main()

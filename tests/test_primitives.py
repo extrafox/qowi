@@ -78,5 +78,21 @@ class TestPrimitives(unittest.TestCase):
             test_uint10 = a.uint10
             self.assertEqual(test_uint10, expected_uint10)
 
+    def test_pinteger_random_uint10_round_trips(self):
+        for expected_uint10 in range(1024):
+            if expected_uint10 == 1: # 1 is not an allowed uint10 value
+                continue
+            a = PInteger.from_uint10(expected_uint10)
+            test_uint10 = a.uint10
+            self.assertEqual(test_uint10, expected_uint10)
+
+    def test_punsignedinteger_random_uint10_round_trips(self):
+        for expected_uint10 in range(1024):
+            if expected_uint10 == 1: # 1 is not an allowed uint10 value
+                continue
+            a = PUnsignedInteger.from_uint10(expected_uint10)
+            test_uint10 = a.uint10
+            self.assertEqual(test_uint10, expected_uint10)
+
 if __name__ == '__main__':
     unittest.main()

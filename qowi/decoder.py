@@ -10,14 +10,10 @@ OP_CODE_RUN = Bits('0b0')
 OP_CODE_CACHE = Bits('0b10')
 OP_CODE_VALUE = Bits('0b11')
 
-def apply_bit_shift(unshifted_values: PList, bit_shift: int) -> PList:
-    ret = PList()
-    for primitive in unshifted_values:
-        if not isinstance(primitive, PInteger):
-            raise TypeError('Primitive must be a PInteger')
-        shifted = (int(primitive.value) << bit_shift) / 4
-        ret.append(PFloat(shifted))
-    return ret
+def apply_left_bit_shift(difference: np.ndarray, bit_shift: int) -> np.ndarray:
+    shifted_int = np.where(difference >= 0, difference << bit_shift, -((-difference) << bit_shift))
+    shifted_float = shifted_int.astype(np.float16) / 4
+    return shifted_float
 
 class Decoder:
     def __init__(self, bitstream: BitStream):
@@ -26,6 +22,7 @@ class Decoder:
         self._run_length = 0
         self._last_token = None
         self._bit_shift = 0
+        self._carry_over_bits = 0
 
         self._cache = LRUCache(CACHE_SIZE)
         self._cache.observe(ZERO_TOKEN)
@@ -40,7 +37,7 @@ class Decoder:
         op_code = self._bitstream.read(1).uint
 
         if op_code == OP_CODE_RUN.uint:
-            # NOTE: no point in incrementing, then decrementing
+            # NOTE: no point in incrementing for the offset, then decrementing for the use
             self._run_length = PList.from_bitstream(self._bitstream, 1, dtype=PUnsignedInteger)[0].value
             return PList.from_token(self._last_token).ndarray
 
@@ -54,43 +51,36 @@ class Decoder:
             return PList.from_token(this_token).ndarray
 
         elif op_code == OP_CODE_VALUE.uint:
-            unshifted_value = PList.from_bitstream(self._bitstream, 3, dtype=PInteger)
-            value = apply_bit_shift(unshifted_value, self._bit_shift)
-            this_token = value.token
+            unshifted_values = PList.from_bitstream(self._bitstream, 3, dtype=PInteger)
+            value_array = apply_left_bit_shift(unshifted_values.ndarray, self._bit_shift)
+            value_plist = PList.from_ndarray(value_array)
+            this_token = value_plist.token
             self._last_token = this_token
             self._cache.observe(this_token)
-            return value.ndarray
+            return value_plist.ndarray
         else:
             raise ValueError("Invalid op code value {}".format(op_code))
 
     def _decode_carry_over(self) -> np.ndarray:
-        # TODO: handle carry over in a cleaner way
+        if self._carry_over_bits == 0:
+            return np.zeros((1, 3), dtype=np.float16)
 
-        ret = np.array([0, 0, 0], dtype=np.float16)
-
-        if self._bit_shift > 1:
-            return ret
-
-        if self._bit_shift == 0:
+        if self._carry_over_bits == 2:
             carry_over = np.array([
                 self._bitstream.read(2).uint,
                 self._bitstream.read(2).uint,
                 self._bitstream.read(2).uint,
             ], dtype=np.float16)
-            for i in range(3):
-                ret[i] = carry_over[i] / 4
-        else:
+            return carry_over.astype(np.float16) / 4
+        elif self._carry_over_bits == 1:
             carry_over = np.array([
                 self._bitstream.read(1).uint,
                 self._bitstream.read(1).uint,
                 self._bitstream.read(1).uint,
             ], dtype=np.float16)
-            for i in range(3):
-                ret[i] = carry_over[i] / 2
+            return carry_over.astype(np.float16) / 4
 
-        return ret
-
-    def decode(self) -> Wavelet:
+    def decode(self) -> np.ndarray:
         if self._decoded:
             return self._wavelet.as_image()
 
@@ -99,7 +89,8 @@ class Decoder:
         height = self._bitstream.read(16).uint
         self._wavelet = Wavelet(width, height)
 
-        self._bit_shift = self._bitstream.read(8).uint
+        self._bit_shift = self._bitstream.read(4).uint
+        self._carry_over_bits = self._bitstream.read(2).uint
 
         # decode the top value of the wavelet
         self._wavelet.wavelet[0, 0] = PList.from_bitstream(self._bitstream, 3, dtype=PFloat).ndarray
@@ -111,6 +102,8 @@ class Decoder:
 
             for i in range(source_length):
                 for j in range(source_length):
+                    # print(">>>>> decode: level: {} i: {} j: {}".format(source_level, i, j))
+
                     hl = self._decode_next_difference()
                     lh = self._decode_next_difference()
                     hh = self._decode_next_difference()

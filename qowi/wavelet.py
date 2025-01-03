@@ -122,7 +122,7 @@ class Wavelet:
 
     def apply_hard_threshold(self, threshold: float):
         root_element = self.wavelet[0, 0]
-        self.wavelet[self.wavelet < threshold] = 0
+        self.wavelet[np.abs(self.wavelet) < threshold] = 0
         self.wavelet[0, 0] = root_element
 
     def apply_soft_threshold(self, threshold: float):

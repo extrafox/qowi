@@ -3,9 +3,6 @@ from bitstring import BitArray, Bits, BitStream
 from qowi.entropy import entropy_decode, entropy_encode
 from typing import List
 
-INTEGER_ORDER_AND_INCREMENT = (1, 1)
-FLOAT_ORDER_AND_INCREMENT = (1, 1)
-
 class Primitive:
     @property
     def uint10(self) -> int:
@@ -37,24 +34,26 @@ class PUnsignedInteger(Primitive):
 
     @property
     def entropy_coded(self) -> Bits:
-        return entropy_encode(self.uint10, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+        return entropy_encode(self.uint10)
 
 class PInteger(Primitive):
     @classmethod
     def from_uint10(cls, uint10: int):
-        sign = -1 if uint10 & 1 == 1 else 1
-        magnitude = uint10 >> 1
-        if magnitude == 0 and sign == -1: # a 1 value creates an ambiguity between 0 and -0
+        if uint10 == 1:  # Directly check for the invalid value
             raise ValueError("A uint10 value of 1 is not allowed")
-        return PInteger(magnitude * sign)
+        sign = -1 if uint10 & 1 else 1
+        magnitude = uint10 >> 1
+        return cls(magnitude * sign)
 
     def __init__(self, value):
         self._value = value
 
     @property
     def uint10(self) -> int:
-        sign = 0 if self._value >= 0 else 1
-        uint10 = abs(self._value << 1) + sign
+        abs_value = abs(self._value)
+        uint10 = abs_value << 1
+        if uint10:  # A nonzero value avoids ambiguity between 0.0 and -0.0
+            uint10 += 1 if self._value < 0 else 0
         return uint10
 
     @property
@@ -63,26 +62,26 @@ class PInteger(Primitive):
 
     @property
     def entropy_coded(self) -> Bits:
-        return entropy_encode(self.uint10, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+        return entropy_encode(self.uint10)
 
 class PFloat(Primitive):
     @classmethod
     def from_uint10(cls, uint10: int):
-        sign = -1 if uint10 & 1 == 1 else 1
-        magnitude = (uint10 >> 1) / 4
-        if magnitude == 0.0 and sign == -1: # a 1 value creates an ambiguity between 0.0 and -0.0
+        if uint10 == 1:  # Directly handle the invalid value
             raise ValueError("A uint10 value of 1 is not allowed")
-        return PFloat(magnitude * sign)
+        sign = -1 if uint10 & 1 else 1
+        magnitude = (uint10 >> 1) / 4
+        return cls(magnitude * sign)
 
     def __init__(self, value):
         self._value = value
 
     @property
     def uint10(self) -> int:
-        sign = 0 if self._value >= 0 else 1
-        uint10 = (abs(int(self._value * 4)) << 1)
-        if uint10 > 0: # a 1 value creates an ambiguity between 0.0 and -0.0
-            uint10 += sign
+        abs_value = abs(self._value * 4)
+        uint10 = int(abs_value) << 1
+        if uint10:  # A nonzero value avoids ambiguity between 0.0 and -0.0
+            uint10 += 1 if self._value < 0 else 0
         return uint10
 
     @property
@@ -91,7 +90,7 @@ class PFloat(Primitive):
 
     @property
     def entropy_coded(self) -> Bits:
-        return entropy_encode(self.uint10, FLOAT_ORDER_AND_INCREMENT[0], FLOAT_ORDER_AND_INCREMENT[1])
+        return entropy_encode(self.uint10)
 
 class PList:
     @classmethod
@@ -109,17 +108,17 @@ class PList:
         return PList.from_list(ret)
 
     @classmethod
-    def from_bitstream(cls, bitstream: BitStream, num_primitives=3, dtype=PInteger):
+    def from_bitstream(cls, bitstream: BitStream, num_primitives, dtype):
         ret = []
         for i in range(num_primitives):
             if dtype == PFloat:
-                uint10 = entropy_decode(bitstream, FLOAT_ORDER_AND_INCREMENT[0], FLOAT_ORDER_AND_INCREMENT[1])
+                uint10 = entropy_decode(bitstream)
                 ret.append(PFloat.from_uint10(uint10))
             elif dtype == PInteger:
-                uint10 = entropy_decode(bitstream, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+                uint10 = entropy_decode(bitstream)
                 ret.append(PInteger.from_uint10(uint10))
             elif dtype == PUnsignedInteger:
-                uint10 = entropy_decode(bitstream, INTEGER_ORDER_AND_INCREMENT[0], INTEGER_ORDER_AND_INCREMENT[1])
+                uint10 = entropy_decode(bitstream)
                 ret.append(PUnsignedInteger.from_uint10(uint10))
             else:
                 raise TypeError("dtype must be a Primitive")
