@@ -1,35 +1,34 @@
-from bitstring import BitArray, Bits, BitStream
+import math
+from bitstring import Bits, BitStream
 
-DEFAULT_START_ORDER = 2
-DEFAULT_END_ORDER = 3
+def calculate_order(value: int) -> int:
+    return math.floor(math.log2(value + 2))
 
-def entropy_encode(value: int, start_order=DEFAULT_START_ORDER, order_increment=DEFAULT_END_ORDER) -> Bits:
-    ret = BitArray()
-    order = start_order
-    min_value = 0
-    while True:
-        num_values = 2 ** order
-        max_value = min_value + num_values - 1
-        if min_value <= value <= max_value:
-            delta = value - min_value
-            ret.append(Bits(uint=0, length=1))
-            ret.append(Bits(uint=delta, length=order))
-            return ret
+def entropy_encode(value: int) -> Bits:
+    if value < 0:
+        raise ValueError("Entropy encoding cannot be negative")
 
-        ret.append(Bits(uint=1, length=1))
-        min_value = max_value + 1
-        order += order_increment
+    order = calculate_order(value)
+    offset = 2 ** order - 2
+    delta = value - offset
+    if delta < 0:
+        raise ValueError(f"Invalid delta calculation: value={value}, offset={offset}, delta={delta}")
 
-def entropy_decode(bit_stream: BitStream, start_order=DEFAULT_START_ORDER, order_increment=DEFAULT_END_ORDER) -> int:
-    order = start_order
-    min_value = 0
-    while True:
-        num_values = 2 ** order
-        max_value = min_value + num_values - 1
+    leading_bits = Bits(bin='1' * (order - 1) + '0')
+    data_bits = Bits(uint=delta, length=order)
+    return leading_bits + data_bits
 
-        b = bit_stream.read(1)
-        if b.uint == 0:
-            return min_value + bit_stream.read(order).uint
+def entropy_decode(bit_stream: BitStream) -> int:
+    order = 1
+    offset = 0
+    leading_ones = 0
+    while bit_stream.peek(1).uint == 1:  # Peek without consuming
+        leading_ones += 1
+        bit_stream.read(1)  # Consume bit
+        offset += 2 ** order
+        order += 1
 
-        min_value = max_value + 1
-        order += order_increment
+    bit_stream.read(1) # Skip the terminating '0' bit
+
+    delta = bit_stream.read(order).uint
+    return offset + delta
