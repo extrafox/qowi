@@ -1,7 +1,5 @@
 import warnings
 import numpy as np
-import qowi.entropy as entropy
-import qowi.uint10 as uint10
 import time
 from bitstring import Bits, BitStream
 from qowi.uint10_encoder import Uint10Encoder

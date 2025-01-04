@@ -63,7 +63,7 @@ class Uint10Encoder:
             position = self._cache.index(token)
             cached = gen_cache_encoding(position)
             return position, cached
-        except ValueError:
+        except IndexError:
             return -1, Bits()
 
     def encode_next(self, this_token: tuple):

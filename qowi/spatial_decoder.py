@@ -1,10 +1,8 @@
-import qowi.entropy as entropy
 import numpy as np
 import time
 from bitstring import BitStream
 from qowi.header import Header
 from qowi.uint10_decoder import Uint10Decoder
-from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
 
