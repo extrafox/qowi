@@ -3,8 +3,7 @@ import numpy as np
 import time
 from bitstring import BitStream
 from qowi.header import Header
-from qowi.uint10_decoder import Uint10Decoder
-from qowi.wavelet import Wavelet
+from qowi.integer_decoder import IntegerDecoder
 from utils.progress_bar import progress_bar
 
 
@@ -49,7 +48,7 @@ class SpatialDecoder:
         self._finished = True
 
     def _read_pixels(self):
-        uint10_decoder = Uint10Decoder(self._bitstream, self._header.cache_size)
+        uint10_decoder = IntegerDecoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._header.width * self._header.height
         counter = 1

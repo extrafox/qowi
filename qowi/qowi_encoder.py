@@ -4,7 +4,7 @@ import numpy as np
 import qowi.entropy as entropy
 import time
 from bitstring import Bits, BitStream
-from qowi.uint10_encoder import Uint10Encoder
+from qowi.integer_encoder import IntegerEncoder
 from skimage import io
 from qowi.header import Header
 from qowi.wavelet import Wavelet
@@ -34,7 +34,6 @@ class QOWIEncoder:
         self._wavelet.prepare_from_image(array)
         self._header.width = self._wavelet.width
         self._header.height = self._wavelet.height
-        self._uint10_array = self._wavelet.as_uint10_array()
 
     def from_file(self, filename):
         self.from_array(io.imread(filename))
@@ -64,8 +63,9 @@ class QOWIEncoder:
         self._header.write(self._bitstream)
 
         # encode the top value of the wavelet
-        root_pixel = self._uint10_array[0, 0]
-        self._bitstream.append(entropy.encode_array(root_pixel))
+        root_pixel = self._wavelet.wavelet[0, 0]
+        root_integer = tuple(np.trunc(root_pixel * 4).astype(np.int16))
+        self._bitstream.append(entropy.encode_tuple(root_integer))
 
         self._write_coefficients()
         self._write_carry_over_bits()
@@ -76,7 +76,7 @@ class QOWIEncoder:
 
     def _write_coefficients(self):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
-        uint10_encoder = Uint10Encoder(self._bitstream, self._header.cache_size)
+        integer_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1
@@ -100,8 +100,9 @@ class QOWIEncoder:
                 raise ValueError("Unknown filter '{}'".format(filter))
 
             # encode this coefficient
-            this_coefficient = self._uint10_array[i + i_offset][j + j_offset]
-            uint10_encoder.encode_next(tuple(this_coefficient))
+            this_coefficient = self._wavelet.wavelet[i + i_offset][j + j_offset]
+            this_integer = tuple(np.trunc(this_coefficient * 4).astype(np.int16))
+            integer_encoder.encode_next(this_integer)
 
             # append children to the stack
             if level + 1 < self._wavelet.num_levels:
@@ -110,8 +111,8 @@ class QOWIEncoder:
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j + 1))
 
-        uint10_encoder.finish()
-        self.stats = uint10_encoder.stats
+        integer_encoder.finish()
+        self.stats = integer_encoder.stats
 
     def _write_carry_over_bits(self):
         if self._header.num_carry_over_bits == 0:

@@ -3,7 +3,6 @@ import unittest
 from bitstring import BitStream
 from qowi.qowi_decoder import QOWIDecoder
 from qowi.qowi_encoder import QOWIEncoder
-from qowi.wavelet import Wavelet
 
 TEST_IMAGES = [
     np.array([

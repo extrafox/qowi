@@ -3,7 +3,8 @@ import numpy as np
 import time
 from bitstring import BitStream
 from qowi.header import Header
-from qowi.uint10_decoder import Uint10Decoder
+from qowi.integer_decoder import IntegerDecoder
+from qowi.integers import integer_to_zigzag
 from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
@@ -42,11 +43,11 @@ class QOWIDecoder:
 
         self._header.read(self._bitstream)
         self._wavelet = Wavelet(self._header.width, self._header.height)
-        self._uint10_array = self._wavelet.as_uint10_array()
 
         # decode the top value of the wavelet
-        root_pixel = entropy.decode_array(self._bitstream, 3)
-        self._uint10_array[0, 0] = root_pixel
+        root_integer = entropy.decode_tuple(self._bitstream, 3)
+        root_pixel = np.array(root_integer, dtype=np.float16) / 4
+        self._wavelet.wavelet[0, 0] = root_pixel
 
         self._read_coefficients()
         self._read_carry_over_bits()
@@ -57,7 +58,7 @@ class QOWIDecoder:
 
     def _read_coefficients(self):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
-        uint10_decoder = Uint10Decoder(self._bitstream, self._header.cache_size)
+        integer_decoder = IntegerDecoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1
@@ -81,8 +82,9 @@ class QOWIDecoder:
                 raise ValueError("Unknown filter '{}'".format(filter))
 
             # decode this coefficient
-            this_coefficient = uint10_decoder.decode_next()
-            self._uint10_array[i + i_offset][j + j_offset] = this_coefficient
+            this_integer = integer_decoder.decode_next()
+            this_coefficient = np.array(this_integer, dtype=np.float16) / 4
+            self._wavelet.wavelet[i + i_offset][j + j_offset] = this_coefficient
 
             # append children to the stack
             if level + 1 < self._wavelet.num_levels:
@@ -90,8 +92,6 @@ class QOWIDecoder:
                 stack.append((level + 1, filter, 2 * i, 2 * j + 1))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j + 1))
-
-        self._wavelet.from_uint10_array(self._uint10_array)
 
     def _read_carry_over_bits(self):
         if self._header.num_carry_over_bits == 0:

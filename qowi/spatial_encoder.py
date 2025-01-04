@@ -1,10 +1,8 @@
 import warnings
 import numpy as np
-import qowi.entropy as entropy
-import qowi.uint10 as uint10
 import time
 from bitstring import Bits, BitStream
-from qowi.uint10_encoder import Uint10Encoder
+from qowi.integer_encoder import IntegerEncoder
 from skimage import io
 from qowi.header import Header
 from utils.progress_bar import progress_bar
@@ -58,7 +56,7 @@ class SpatialEncoder:
         self._finished = True
 
     def _write_pixels(self):
-        uint10_encoder = Uint10Encoder(self._bitstream, self._header.cache_size)
+        uint10_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._source_image.shape[0] * self._source_image.shape[1]
         counter = 1

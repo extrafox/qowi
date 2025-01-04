@@ -1,7 +1,10 @@
 import math
 import numpy as np
-import qowi.uint10 as uint10
+import qowi.integers as uint10
 from numpy import ndarray
+
+from qowi import integers
+
 
 class Wavelet:
     def __init__(self, width=0, height=0):
@@ -84,11 +87,11 @@ class Wavelet:
 
         return self
 
-    def as_uint10_array(self):
-        return uint10.float_array_to_uint10_array(self.wavelet)
-
-    def from_uint10_array(self, uint10_array):
-        self.wavelet = uint10.uint10_array_to_float16_array(uint10_array)
+    # def as_integer_array(self):
+    #     return integers.float_array_to_integer_array(self.wavelet, shift_count=2)
+    #
+    # def from_uint10_array(self, integer_array):
+    #     self.wavelet = integers.integer_array_to_float16_array(integer_array)
 
     def as_image(self):
         ret_wavelet = self.wavelet.copy()

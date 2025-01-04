@@ -44,18 +44,25 @@ def encode_tuple(uint_tuple) -> Bits:
     return ret
 
 
-def encode_array(uint_array: np.ndarray) -> Bits:
-    if uint_array.dtype.kind != 'u':
-        raise TypeError("Encoded array must be of an unsigned int type")
-
-    ret = BitArray()
-    for uint_value in uint_array:
-        ret.append(encode(uint_value))
-    return ret
-
-
-def decode_array(bit_stream: BitStream, num_to_decode=1) -> np.ndarray:
-    ret = np.empty(shape=num_to_decode, dtype=np.uint16)
+def decode_tuple(bit_stream: BitStream, num_to_decode=1) -> tuple:
+    ret = [None] * num_to_decode
     for i in range(num_to_decode):
         ret[i] = decode(bit_stream)
-    return ret
+    return tuple(ret)
+
+
+# def encode_array(uint_array: np.ndarray) -> Bits:
+#     if uint_array.dtype.kind != 'u':
+#         raise TypeError("Encoded array must be of an unsigned int type")
+#
+#     ret = BitArray()
+#     for uint_value in uint_array:
+#         ret.append(encode(uint_value))
+#     return ret
+#
+#
+# def decode_array(bit_stream: BitStream, num_to_decode=1) -> np.ndarray:
+#     ret = np.empty(shape=num_to_decode, dtype=np.uint16)
+#     for i in range(num_to_decode):
+#         ret[i] = decode(bit_stream)
+#     return ret
