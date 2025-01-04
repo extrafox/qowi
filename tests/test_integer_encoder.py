@@ -25,7 +25,7 @@ class TestIntegerEncoder(unittest.TestCase):
         op_code = bitstream.read(2)
         self.assertEqual(OP_CODE_DELTA, op_code)
 
-        delta_zigzag = entropy.decode_tuple(bitstream, 3)
+        delta_zigzag = entropy.golomb_decode_tuple(bitstream, 3)
         delta_value = integers.zigzag_tuple_to_int_tuple(delta_zigzag)
         observed_token = integers.subtract_tuples(ZERO_INTEGER, delta_value)
 
@@ -41,11 +41,11 @@ class TestIntegerEncoder(unittest.TestCase):
         e.finish()
 
         op_code = bitstream.read(2)
-        delta_zigzag = entropy.decode_tuple(bitstream, 3)
+        delta_zigzag = entropy.golomb_decode_tuple(bitstream, 3)
         op_code = bitstream.read(2)
         self.assertEqual(OP_CODE_VALUE, op_code)
 
-        value_zigzag = entropy.decode_tuple(bitstream, 3)
+        value_zigzag = entropy.golomb_decode_tuple(bitstream, 3)
         observed_token = integers.zigzag_tuple_to_int_tuple(value_zigzag)
         self.assertEqual(tokens[1], observed_token)
 
@@ -60,7 +60,7 @@ class TestIntegerEncoder(unittest.TestCase):
         op_code = bitstream.read(2)
         self.assertEqual(OP_CODE_RUN, op_code)
 
-        run_value = entropy.decode(bitstream) + 1
+        run_value = entropy.golomb_decode(bitstream) + 1
         self.assertEqual(1, run_value)
 
 
@@ -74,11 +74,11 @@ class TestIntegerEncoder(unittest.TestCase):
         e.finish()
 
         op_code = bitstream.read(2)
-        delta_zigzag = entropy.decode_tuple(bitstream, 3)
+        delta_zigzag = entropy.golomb_decode_tuple(bitstream, 3)
         op_code = bitstream.read(2)
         self.assertEqual(OP_CODE_CACHE, op_code)
 
-        pos_value = entropy.decode(bitstream)
+        pos_value = entropy.golomb_decode(bitstream)
         self.assertEqual(1, pos_value)
 
 

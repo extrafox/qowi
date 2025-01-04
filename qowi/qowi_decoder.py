@@ -45,7 +45,7 @@ class QOWIDecoder:
         self._wavelet = Wavelet(self._header.width, self._header.height)
 
         # decode the top value of the wavelet
-        root_integer = entropy.decode_tuple(self._bitstream, 3)
+        root_integer = entropy.golomb_decode_tuple(self._bitstream, 3)
         root_pixel = np.array(root_integer, dtype=np.float16) / 4
         self._wavelet.wavelet[0, 0] = root_pixel
 

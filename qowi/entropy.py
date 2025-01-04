@@ -2,67 +2,85 @@ import math
 import numpy as np
 from bitstring import BitArray, Bits, BitStream
 
-def calculate_order(value: int) -> int:
-    return math.floor(math.log2(value + 2))
 
-
-def encode(uint_value: int) -> Bits:
-    if uint_value < 0:
-        raise ValueError("Entropy encoding cannot be negative")
-
-    order = calculate_order(uint_value)
-    offset = 2 ** order - 2
-    delta = uint_value - offset
-    if delta < 0:
-        raise ValueError("Invalid delta calculation: value={}, offset={}, delta={}".format(uint_value, offset, delta))
-
-    leading_bits = Bits(bin='1' * (order - 1) + '0')
-    data_bits = Bits(uint=delta, length=order)
-    return leading_bits + data_bits
-
-
-def decode(bit_stream: BitStream) -> int:
-    order = 1
-    offset = 0
-    leading_ones = 0
-    while bit_stream.peek(1).uint == 1:  # Peek without consuming
-        leading_ones += 1
-        bit_stream.read(1)  # Consume bit
-        offset += 2 ** order
-        order += 1
-
-    bit_stream.read(1) # Skip the terminating '0' bit
-
-    delta = bit_stream.read(order).uint
-    return offset + delta
-
-
-def encode_tuple(uint_tuple) -> Bits:
+def golomb_encode_tuple(uint_tuple, m=16) -> Bits:
     ret = BitArray()
     for uint_value in uint_tuple:
-        ret.append(encode(uint_value))
+        ret.append(golomb_encode(uint_value, m))
     return ret
 
 
-def decode_tuple(bit_stream: BitStream, num_to_decode=1) -> tuple:
+def golomb_decode_tuple(bitstream: BitStream, num_to_decode=1, m=16) -> tuple:
     ret = [None] * num_to_decode
     for i in range(num_to_decode):
-        ret[i] = decode(bit_stream)
+        ret[i] = golomb_decode(bitstream, m)
     return tuple(ret)
 
 
-# def encode_array(uint_array: np.ndarray) -> Bits:
-#     if uint_array.dtype.kind != 'u':
-#         raise TypeError("Encoded array must be of an unsigned int type")
-#
-#     ret = BitArray()
-#     for uint_value in uint_array:
-#         ret.append(encode(uint_value))
-#     return ret
-#
-#
-# def decode_array(bit_stream: BitStream, num_to_decode=1) -> np.ndarray:
-#     ret = np.empty(shape=num_to_decode, dtype=np.uint16)
-#     for i in range(num_to_decode):
-#         ret[i] = decode(bit_stream)
-#     return ret
+def golomb_encode(n, m=16):
+    """
+    Encodes an integer n using Golomb coding with parameter M and returns a Bits object.
+
+    :param n: The integer to encode (non-negative).
+    :param m: The Golomb parameter (positive integer).
+    :return: A Bits object containing the Golomb-encoded value.
+    """
+    if m <= 0:
+        raise ValueError("M must be a positive integer")
+    if n < 0:
+        raise ValueError("n must be a non-negative integer")
+
+    # Quotient part (unary encoding)
+    q = n // m
+    unary = BitArray(bool=True) * q  # q '1' bits
+    unary.append(BitArray(bool=False))  # 1 '0' bit
+
+    # Remainder part (binary encoding)
+    r = n % m
+    b = (m - 1).bit_length()  # Number of bits to encode the remainder
+    threshold = (1 << b) - m
+
+    if r < threshold:  # Smaller remainder fits in b-1 bits
+        remainder = BitArray(uint=r, length=b - 1)
+    else:
+        r += threshold
+        remainder = BitArray(uint=r, length=b)
+
+    # Combine unary and remainder parts
+    unary.append(remainder)
+    return unary
+
+
+def golomb_decode(bitstream: BitStream, m=16):
+    """
+    Decodes a Golomb-encoded value from a BitStream.
+
+    :param bitstream: The BitStream object containing the encoded data.
+    :param m: The Golomb parameter (positive integer).
+    :return: The decoded integer and the number of bits read.
+    """
+    if m <= 0:
+        raise ValueError("M must be a positive integer")
+    if not isinstance(bitstream, BitStream):
+        raise TypeError("bit_stream must be an instance of BitStream")
+
+    # Decode the unary part
+    q = 0
+    while bitstream.read(1).bin == '1':
+        q += 1
+
+    # Decode the remainder part
+    b = (m - 1).bit_length()  # Number of bits for the remainder
+    threshold = (1 << b) - m
+
+    # Read the next `b-1` bits first
+    r_bits = bitstream.read(b - 1).bin
+    r = int(r_bits, 2)
+
+    if r >= threshold:  # If remainder is above threshold, read one more bit
+        r = (r << 1) | int(bitstream.read(1).bin, 2)
+        r -= threshold
+
+    # Calculate the decoded value
+    n = q * m + r
+    return n

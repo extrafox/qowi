@@ -65,7 +65,7 @@ class QOWIEncoder:
         # encode the top value of the wavelet
         root_pixel = self._wavelet.wavelet[0, 0]
         root_integer = tuple(np.trunc(root_pixel * 4).astype(np.int16))
-        self._bitstream.append(entropy.encode_tuple(root_integer))
+        self._bitstream.append(entropy.golomb_encode_tuple(root_integer))
 
         self._write_coefficients()
         self._write_carry_over_bits()
