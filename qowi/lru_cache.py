@@ -1,31 +1,26 @@
 
-# NOTES:
-# 1. using a dictionary index to speed up checking if the value is in the cache
-# 2. using a doubly linked list with index to speed up observe() performance
-# 3. cleaning up out-of-bounds nodes and their indices opportunistically
-# 4. opportunistically creating an index of indices while traversing
-
 class Node:
-    def __init__(self, last, next, value):
+    def __init__(self, last, next, value, index):
         self.last  = last
         self.next = next
         self.value = value
+        self.index = index
+
+    def __repr__(self):
+        return f'{self.index}: {self.value}'
+
 
 class LRUCache:
 
-    # TODO: keep a pointer to the last record in the cache and pop last item when capacity exceeded
-
     def __init__(self, capacity):
-        self._value_index = {}
-        self._index_index = {}
-        self._root = Node(None, None, None)
+        self._value_lookup = {}
+        self._root = Node(None, None, None, None)
         self._capacity = capacity
+        self._last_node = None
 
     def _prepend_node(self, node):
         if self._root.next is node:
             return
-
-        self._index_index = {}
 
         old_first = self._root.next
         node_old_last = node.last
@@ -37,6 +32,7 @@ class LRUCache:
         # update node
         node.last = self._root
         node.next = old_first
+        node.index = 0
 
         # update old first node
         if old_first is not None:
@@ -50,46 +46,58 @@ class LRUCache:
             else:
                 node_old_last.next = None
 
+        if self._last_node is None:
+            self._last_node = node
+        elif self._last_node == node:
+            self._last_node = node_old_last
+
     def observe(self, value):
-        if value not in self._value_index:
-            node = Node(None, None, value)
-            self._value_index[value] = node
+        if value not in self._value_lookup:
+            node = Node(None, None, value, None)
+            self._value_lookup[value] = node
             self._prepend_node(node)
+            self._reindex_to(self._last_node)
+            self._expire_old_nodes()
         else:
-            node = self._value_index[value]
+            node = self._value_lookup[value]
+            old_next = node.next
             self._prepend_node(node)
+            self._reindex_to(old_next)
 
     def index(self, value):
-        # fail quickly
-        if value not in self._value_index:
-            raise ValueError("{} not found".format(value))
+        if value in self._value_lookup:
+            return self._value_lookup[value].index
+        else:
+            raise IndexError
 
-        # look up this value in the index of indices
-        if value in self._index_index:
-            return self._index_index[value]
+    def _reindex_to(self, target):
+        node = self._root.next
+        i = 0
+        while True:
+            if node is None:
+                return
 
-        # search for index
-        node = self._root
-        i = -1
-        while node.next is not None and i < self._capacity - 1:
-            i += 1
+            node.index = i
+            if node == target:
+                break
             node = node.next
-            self._index_index[node.value] = i
-            if node.value == value:
-                return i
+            i += 1
 
-        # clean up when the value is out-of-bounds
-        if node.next is not None:
-            self._delete_after(node)
-
-        raise ValueError("{} not found".format(value))
+    def _expire_old_nodes(self):
+        if self._last_node.index >= self._capacity:
+            old_last = self._last_node
+            self._last_node = old_last.last
+            self._delete_after(self._last_node)
 
     def _delete_after(self, parent: Node):
+        if parent.next is None:
+            return
+
         node = parent.next
         parent.next = None
 
         while node is not None:
-            del self._value_index[node.value]
+            del self._value_lookup[node.value]
             node = node.next
 
     def __getitem__(self, key):
@@ -118,3 +126,6 @@ class LRUCache:
             ret += "{}".format(repr(node.value))
         ret += "]"
         return ret
+
+    def __len__(self):
+        return self._last_node.index + 1
