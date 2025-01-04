@@ -3,6 +3,7 @@
 # 1. using a dictionary index to speed up checking if the value is in the cache
 # 2. using a doubly linked list with index to speed up observe() performance
 # 3. cleaning up out-of-bounds nodes and their indices opportunistically
+# 4. opportunistically creating an index of indices while traversing
 
 class Node:
     def __init__(self, last, next, value):
@@ -13,16 +14,18 @@ class Node:
 class LRUCache:
 
     # TODO: keep a pointer to the last record in the cache and pop last item when capacity exceeded
-    # TODO: create an index for the index (speed up getting the index value)
 
     def __init__(self, capacity):
-        self._index = {}
+        self._value_index = {}
+        self._index_index = {}
         self._root = Node(None, None, None)
         self._capacity = capacity
 
     def _prepend_node(self, node):
         if self._root.next is node:
             return
+
+        self._index_index = {}
 
         old_first = self._root.next
         node_old_last = node.last
@@ -48,18 +51,22 @@ class LRUCache:
                 node_old_last.next = None
 
     def observe(self, value):
-        if value not in self._index:
+        if value not in self._value_index:
             node = Node(None, None, value)
-            self._index[value] = node
+            self._value_index[value] = node
             self._prepend_node(node)
         else:
-            node = self._index[value]
+            node = self._value_index[value]
             self._prepend_node(node)
 
     def index(self, value):
         # fail quickly
-        if value not in self._index:
+        if value not in self._value_index:
             raise ValueError("{} not found".format(value))
+
+        # look up this value in the index of indices
+        if value in self._index_index:
+            return self._index_index[value]
 
         # search for index
         node = self._root
@@ -67,6 +74,7 @@ class LRUCache:
         while node.next is not None and i < self._capacity - 1:
             i += 1
             node = node.next
+            self._index_index[node.value] = i
             if node.value == value:
                 return i
 
@@ -81,7 +89,7 @@ class LRUCache:
         parent.next = None
 
         while node is not None:
-            del self._index[node.value]
+            del self._value_index[node.value]
             node = node.next
 
     def __getitem__(self, key):
