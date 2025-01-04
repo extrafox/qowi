@@ -1,6 +1,9 @@
 import numpy as np
 import unittest
-from qowi.encoder import Encoder
+
+from bitstring import BitStream
+
+from qowi.qowi_encoder import QOWIEncoder
 from qowi.wavelet import Wavelet
 
 TEST_IMAGES = [
@@ -64,37 +67,43 @@ TEST_IMAGES = [
 class TestEncoder(unittest.TestCase):
 
     def test_encoder_instantiation(self):
-        w = Wavelet()
-        e = Encoder(w)
-        self.assertIsInstance(e, Encoder)
+        e = QOWIEncoder()
+        self.assertIsInstance(e, QOWIEncoder)
 
     def test_encode_from_zero_image(self):
-        w = Wavelet()
-        w.prepare_from_image(TEST_IMAGES[0])
-        e = Encoder(w)
-        bits = e.encode()
-        self.assertGreater(len(bits), 32)
+        bitstream = BitStream()
+
+        e = QOWIEncoder()
+        e.from_array(TEST_IMAGES[0])
+        e.to_bitstream(bitstream)
+        e.encode()
+
+        self.assertGreater(bitstream.len, 32)
 
     def test_encode_from_zero_image_bit_shift_zero(self):
-        w = Wavelet()
-        w.prepare_from_image(TEST_IMAGES[0])
-        e = Encoder(w, bit_shift=0)
-        bits = e.encode()
-        self.assertGreater(len(bits), 32)
+        e = QOWIEncoder(bit_shift=0)
+        e.from_array(TEST_IMAGES[0])
+        bitstream = BitStream()
+        e.to_bitstream(bitstream)
+        e.encode()
+        self.assertGreater(bitstream.len, 32)
 
     def test_encode_from_zero_image_bit_shift_two(self):
-        w = Wavelet()
-        w.prepare_from_image(TEST_IMAGES[0])
-        e = Encoder(w, bit_shift=2)
-        bits = e.encode()
-        self.assertGreater(len(bits), 32)
+        e = QOWIEncoder(bit_shift=2)
+        e.from_array(TEST_IMAGES[0])
+        bitstream = BitStream()
+        e.to_bitstream(bitstream)
+        e.encode()
+        self.assertGreater(bitstream.len, 32)
 
     def test_encode_from_three_image(self):
-        w = Wavelet()
-        w.prepare_from_image(TEST_IMAGES[3])
-        e = Encoder(w)
-        bits = e.encode()
-        self.assertGreater(len(bits), 32)
+        e = QOWIEncoder()
+        e.from_array(TEST_IMAGES[3])
+        bitstream = BitStream()
+        e.to_bitstream(bitstream)
+        e.encode()
+        self.assertGreater(bitstream.len, 32)
 
 if __name__ == '__main__':
     unittest.main()
+

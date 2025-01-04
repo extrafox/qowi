@@ -6,9 +6,13 @@ from bitstring import BitStream
 class EntropyTestCases(unittest.TestCase):
 
     def test_entropy_round_trip(self):
-        for v1 in range(2048):
-            v2 = entropy.decode(BitStream(entropy.encode(v1)))
-            self.assertEqual(v1, v2)
+        for expected in range(2048):
+            bits = entropy.encode(expected)
+            bitstream = BitStream(bits)
+            observed = entropy.decode(bitstream)
+            num_unread = bitstream.len - bitstream.pos
+            self.assertEqual(expected, observed)
+            self.assertTrue(num_unread == 0)
 
     def test_calculate_entropy(self):
         actual = []

@@ -37,6 +37,13 @@ def decode(bit_stream: BitStream) -> int:
     return offset + delta
 
 
+def encode_tuple(uint_tuple) -> Bits:
+    ret = BitArray()
+    for uint_value in uint_tuple:
+        ret.append(encode(uint_value))
+    return ret
+
+
 def encode_array(uint_array: np.ndarray) -> Bits:
     if uint_array.dtype.kind != 'u':
         raise TypeError("Encoded array must be of an unsigned int type")

@@ -11,6 +11,10 @@ class Node:
         self.value = value
 
 class LRUCache:
+
+    # TODO: keep a pointer to the last record in the cache and pop last item when capacity exceeded
+    # TODO: create an index for the index (speed up getting the index value)
+
     def __init__(self, capacity):
         self._index = {}
         self._root = Node(None, None, None)

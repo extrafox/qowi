@@ -1,7 +1,7 @@
 import numpy as np
 from bitstring import BitStream
-from qowi.decoder import Decoder
-from qowi.encoder import Encoder
+from qowi.uint10_decoder import Decoder
+from qowi.uint10_encoder import UintEncoder
 from qowi.wavelet import Wavelet
 
 count = 0
@@ -21,7 +21,7 @@ while True: # go until something breaks
 	print("Encoding with bit shift {}, carry over {} and hard threshold {}...".format(bit_shift, carry_over_bits, hard_threshold))
 	w = Wavelet().prepare_from_image(random_image)
 	w.apply_hard_threshold(hard_threshold)
-	e = Encoder(w, bit_shift, carry_over_bits)
+	e = UintEncoder(w, bit_shift, carry_over_bits)
 	encoded_image = e.encode()
 	bit_shift_threshold_size = len(encoded_image)
 	original_image_size = random_image.shape[0] * random_image.shape[1] * random_image.shape[2] * 8

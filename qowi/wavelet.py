@@ -8,6 +8,7 @@ class Wavelet:
         self.width = 0
         self.height = 0
         self.length = 0
+        self.num_levels = 0
         self.wavelet = None
         self.carry_over = None
 
@@ -84,10 +85,10 @@ class Wavelet:
         return self
 
     def as_uint10_array(self):
-        return uint10.from_float_array(self.wavelet)
+        return uint10.float_array_to_uint10_array(self.wavelet)
 
     def from_uint10_array(self, uint10_array):
-        self.wavelet = uint10.to_float_array(uint10_array)
+        self.wavelet = uint10.uint10_array_to_float16_array(uint10_array)
 
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
