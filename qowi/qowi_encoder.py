@@ -1,28 +1,26 @@
 import sys
-
+import warnings
 import numpy as np
 import qowi.entropy as entropy
+import time
 from bitstring import Bits, BitStream
 from qowi.uint10_encoder import Uint10Encoder
 from skimage import io
 from qowi.header import Header
 from qowi.wavelet import Wavelet
-
-
-def _progress_bar(progress, total, bar_width=80):
-    filled_length = int(bar_width * progress // total)
-    bar = '=' * filled_length + '-' * (bar_width - filled_length)
-    sys.stdout.write(f'\r|{bar}| {progress}/{total} ({(progress / total) * 100:.2f}%)')
-    sys.stdout.flush()
+from utils.progress_bar import progress_bar
 
 class QOWIEncoder:
-    def __init__(self, hard_threshold=0, soft_threshold=0, bit_shift=0, num_carry_over_bits=2):
-        self._hard_threshold = max(0, min(hard_threshold, 510))
-        self._soft_threshold = max(0, min(soft_threshold, 510))
+    def __init__(self, hard_threshold=-1, soft_threshold=-1, bit_shift=0, num_carry_over_bits=2):
+        self._hard_threshold = max(-1, min(hard_threshold, 510))
+        self._soft_threshold = max(-1, min(soft_threshold, 510))
 
         self._header = Header()
         self._header.bit_shift = max(0, min(bit_shift, 7))
         self._header.num_carry_over_bits = max(0, min(num_carry_over_bits, 2))
+
+        if self._header.bit_shift > 0:
+            warnings.warn("Bit shift is currently not implemented", category=UserWarning)
 
         self._wavelet = Wavelet()
         self._uint10_array = None
@@ -30,6 +28,7 @@ class QOWIEncoder:
 
         self._finished = False
         self.stats = {}
+        self.encode_duration = 0
 
     def from_array(self, array: np.ndarray):
         self._wavelet.prepare_from_image(array)
@@ -50,10 +49,17 @@ class QOWIEncoder:
         if self._finished:
             return
 
+        start_time = time.time()
+
         if self._bitstream is None:
             raise RuntimeError("Destination must be prepared to encode")
         if self._wavelet is None:
             raise RuntimeError("Source must be prepared to encode")
+
+        if self._hard_threshold > -1:
+            self._wavelet.apply_hard_threshold(self._hard_threshold)
+        elif self._soft_threshold > -1:
+            self._wavelet.apply_soft_threshold(self._soft_threshold)
 
         self._header.write(self._bitstream)
 
@@ -64,6 +70,8 @@ class QOWIEncoder:
         self._write_coefficients()
         self._write_carry_over_bits()
 
+        end_time = time.time()
+        self.encode_duration = end_time - start_time
         self._finished = True
 
     def _write_coefficients(self):
@@ -73,7 +81,7 @@ class QOWIEncoder:
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1
         while len(stack) > 0:
-            _progress_bar(counter, number_of_tokens)
+            progress_bar(counter, number_of_tokens)
             counter += 1
 
             level, filter, i, j = stack.pop()

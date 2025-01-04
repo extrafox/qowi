@@ -3,6 +3,7 @@ import pandas as pd
 from bitstring import BitStream
 from matplotlib import pyplot as plt
 
+from qowi.qowi_decoder import QOWIDecoder
 from qowi.qowi_encoder import QOWIEncoder
 from qowi.wavelet import Wavelet
 from skimage import io
@@ -10,6 +11,10 @@ from skimage import io
 TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
 # TEST_IMAGE_PATH = "media/mango_32x32.jpg"
 PRINT_STATS = True
+HARD_THRESHOLD = 2
+SOFT_THRESHOLD = -1
+BIT_SHIFT = 0
+NUM_CARRY_OVER_BITS = 1
 
 def op_code_frequency(df):
     # Count occurrences of each op_code
@@ -146,25 +151,30 @@ source_image = io.imread(TEST_IMAGE_PATH)
 original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-hard_threshold = 1
-bit_shift = 2
-num_carry_over_bits = 0
-print("Encoding with bit shift {}, carry over {} and hard threshold {}...".format(bit_shift, num_carry_over_bits, hard_threshold))
+print("Encoding with bit shift {}, carry over {}, soft threshold {} and hard threshold {}...".format(BIT_SHIFT, NUM_CARRY_OVER_BITS, SOFT_THRESHOLD, HARD_THRESHOLD))
 encoded_bitstream = BitStream()
-e = QOWIEncoder(bit_shift=bit_shift, hard_threshold=hard_threshold, num_carry_over_bits=num_carry_over_bits)
+e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD, BIT_SHIFT, NUM_CARRY_OVER_BITS)
 e.from_array(source_image)
 e.to_bitstream(encoded_bitstream)
 e.encode()
 print()
+print("Finished encoding in {:.2f} seconds".format(e.encode_duration))
 
-bit_shift_threshold_size = len(encoded_bitstream)
-print("Bit shift (bits): {} ({}%)".format(bit_shift_threshold_size, round(bit_shift_threshold_size / original_image_size * 100, 2)))
-# print("Computing signal to noise ratio (SNR)...")
-# d = Decoder(BitStream(encoded_image))
-# decoded_image = d.decode()
-# print("SNR: {}".format(signal_to_noise(source_image, decoded_image)))
-#
-# display_images_side_by_side(source_image, decoded_image)
+encoded_size = len(encoded_bitstream)
+print("Encoded (bits): {} ({}%)".format(encoded_size, round(encoded_size / original_image_size * 100, 2)))
+
+print()
+print("Decoding...")
+d = QOWIDecoder()
+d.from_bitstream(encoded_bitstream)
+d.decode()
+decoded_image = d.as_array()
+print("Finished decoding in {:.2f} seconds".format(d.decode_duration))
+
+print("Computing signal to noise ratio (SNR)...")
+print("SNR: {}".format(signal_to_noise(source_image, decoded_image)))
+
+display_images_side_by_side(source_image, decoded_image)
 
 ###
 ### Output histogram of RGB values

@@ -1,10 +1,11 @@
 import qowi.entropy as entropy
 import numpy as np
-import qowi.uint10 as uint10
+import time
 from bitstring import BitStream
 from qowi.header import Header
 from qowi.uint10_decoder import Uint10Decoder
 from qowi.wavelet import Wavelet
+from utils.progress_bar import progress_bar
 
 
 class QOWIDecoder:
@@ -14,6 +15,7 @@ class QOWIDecoder:
         self._uint10_array = None
         self._bitstream = None
         self._finished = False
+        self.decode_duration = 0
 
     def from_bitstream(self, bitstream: BitStream):
         self._bitstream = bitstream
@@ -33,6 +35,8 @@ class QOWIDecoder:
         if self._finished:
             return
 
+        start_time = time.time()
+
         if self._bitstream is None:
             raise RuntimeError("Destination must be prepared to encode")
 
@@ -47,13 +51,20 @@ class QOWIDecoder:
         self._read_coefficients()
         self._read_carry_over_bits()
 
+        end_time = time.time()
+        self.decode_duration = end_time - start_time
         self._finished = True
 
     def _read_coefficients(self):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
         uint10_decoder = Uint10Decoder(self._bitstream, self._header.cache_size)
 
+        number_of_tokens = self._wavelet.length ** 2 - 1
+        counter = 1
         while len(stack) > 0:
+            progress_bar(counter, number_of_tokens)
+            counter += 1
+
             level, filter, i, j = stack.pop()
 
             level_length = 2 ** level
