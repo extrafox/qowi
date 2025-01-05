@@ -2,12 +2,14 @@ import warnings
 import numpy as np
 import time
 from bitstring import Bits, BitStream
+
+from qowi import integers
 from qowi.integer_encoder import IntegerEncoder
 from skimage import io
 from qowi.header import Header
 from utils.progress_bar import progress_bar
 
-DEFAULT_CACHE_SIZE = 256
+DEFAULT_CACHE_SIZE = 65533
 
 class SpatialEncoder:
     def __init__(self):
@@ -69,7 +71,8 @@ class SpatialEncoder:
                 counter += 1
 
                 this_pixel = self._source_image[i, j]
-                integer_encoder.encode_next(tuple(this_pixel))
+                this_shifted = integers.int_tuple_to_shifted_tuple(this_pixel, 256)
+                integer_encoder.encode_next(this_shifted)
 
         integer_encoder.finish()
         self.stats = integer_encoder.stats

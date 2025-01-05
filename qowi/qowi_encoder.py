@@ -9,7 +9,7 @@ from qowi.header import Header
 from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
-DEFAULT_CACHE_SIZE = 256
+DEFAULT_CACHE_SIZE = 65533
 
 class QOWIEncoder:
     def __init__(self, hard_threshold=-1, soft_threshold=-1):

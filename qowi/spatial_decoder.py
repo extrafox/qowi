@@ -2,6 +2,8 @@ import qowi.entropy as entropy
 import numpy as np
 import time
 from bitstring import BitStream
+
+from qowi import integers
 from qowi.header import Header
 from qowi.integer_decoder import IntegerDecoder
 from utils.progress_bar import progress_bar
@@ -56,5 +58,6 @@ class SpatialDecoder:
                 progress_bar(counter, number_of_tokens)
                 counter += 1
 
-                this_pixel = integer_decoder.decode_next()
+                this_shifted = integer_decoder.decode_next()
+                this_pixel = integers.shifted_tuple_to_int_tuple(this_shifted, 256)
                 self._output_image[i, j] = this_pixel
