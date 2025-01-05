@@ -18,7 +18,7 @@ def zigzag_tuple_to_int_tuple(zigzag_tuple: tuple) -> tuple:
 
 
 def subtract_tuples(first: tuple, second: tuple) -> tuple:
-    return tuple(a - b for a, b in zip(first, second))
+    return tuple(int(a) - int(b) for a, b in zip(first, second))
 
 
 # def zigzag_array_to_int16_array(zigzag_array: np.ndarray) -> np.ndarray:
