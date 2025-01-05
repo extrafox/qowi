@@ -38,7 +38,8 @@ class MFLRUCache:
         self._list.add(node)
 
         if len(self._list) > self._capacity:
-            self._list.pop()
+            old_node = self._list.pop()
+            del self._value_index[old_node.value]
 
     def index(self, value):
         if value not in self._value_index:

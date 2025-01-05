@@ -40,6 +40,7 @@ d = QOWIDecoder()
 d.from_bitstream(encoded_bitstream)
 d.decode()
 decoded_image = d.as_array()
+print()
 print("Finished decoding in {:.2f} seconds".format(d.decode_duration))
 
 print("Computing signal to noise ratio (SNR)...")
