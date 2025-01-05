@@ -48,7 +48,7 @@ class SpatialDecoder:
         self._finished = True
 
     def _read_pixels(self):
-        uint10_decoder = IntegerDecoder(self._bitstream, self._header.cache_size)
+        integer_decoder = IntegerDecoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._header.width * self._header.height
         counter = 1
@@ -57,5 +57,5 @@ class SpatialDecoder:
                 progress_bar(counter, number_of_tokens)
                 counter += 1
 
-                this_pixel = uint10_decoder.decode_next()
+                this_pixel = integer_decoder.decode_next()
                 self._output_image[i, j] = this_pixel

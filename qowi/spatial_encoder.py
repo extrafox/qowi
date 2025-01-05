@@ -56,7 +56,7 @@ class SpatialEncoder:
         self._finished = True
 
     def _write_pixels(self):
-        uint10_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
+        integer_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
 
         number_of_tokens = self._source_image.shape[0] * self._source_image.shape[1]
         counter = 1
@@ -66,7 +66,7 @@ class SpatialEncoder:
                 counter += 1
 
                 this_pixel = self._source_image[i, j]
-                uint10_encoder.encode_next(tuple(this_pixel))
+                integer_encoder.encode_next(tuple(this_pixel))
 
-        uint10_encoder.finish()
-        self.stats = uint10_encoder.stats
+        integer_encoder.finish()
+        self.stats = integer_encoder.stats

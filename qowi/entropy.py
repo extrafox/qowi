@@ -1,8 +1,6 @@
-import math
-import numpy as np
 from bitstring import BitArray, Bits, BitStream
 
-DEFAULT_M = 60 # TODO: figure out how to optimize this number for each data distribution
+DEFAULT_M = 4 # TODO: figure out how to optimize this number for each data distribution
 
 def golomb_encode_tuple(uint_tuple, m=DEFAULT_M) -> Bits:
     ret = BitArray()
@@ -20,68 +18,63 @@ def golomb_decode_tuple(bitstream: BitStream, num_to_decode=1, m=DEFAULT_M) -> t
 
 def golomb_encode(n, m=DEFAULT_M):
     """
-    Encodes an integer n using Golomb coding with parameter M and returns a Bits object.
+    Encode an integer n using Golomb coding with divisor m.
 
     :param n: The integer to encode (non-negative).
-    :param m: The Golomb parameter (positive integer).
-    :return: A Bits object containing the Golomb-encoded value.
+    :param m: The Golomb divisor (positive integer).
+    :return: A Bits object representing the encoded value.
     """
     if m <= 0:
-        raise ValueError("M must be a positive integer")
+        raise ValueError("m must be a positive integer")
     if n < 0:
         raise ValueError("n must be a non-negative integer")
 
-    # Quotient part (unary encoding)
+    # Quotient and remainder
     q = n // m
-    unary = BitArray(bool=True) * q  # q '1' bits
-    unary.append(BitArray(bool=False))  # 1 '0' bit
-
-    # Remainder part (binary encoding)
     r = n % m
-    b = (m - 1).bit_length()  # Number of bits to encode the remainder
+
+    # Unary part: q repetitions of '1' followed by '0'
+    unary = Bits(bin='1' * q + '0')
+
+    # Binary representation of the remainder
+    b = (m - 1).bit_length()
     threshold = (1 << b) - m
 
-    if r < threshold:  # Smaller remainder fits in b-1 bits
-        remainder = BitArray(uint=r, length=b - 1)
+    if r < threshold:
+        remainder = Bits(uint=r, length=b - 1)
     else:
-        r += threshold
-        remainder = BitArray(uint=r, length=b)
+        remainder = Bits(uint=r + threshold, length=b)
 
     # Combine unary and remainder parts
-    unary.append(remainder)
-    return unary
+    return unary + remainder
 
-
-def golomb_decode(bitstream: BitStream, m=DEFAULT_M):
+def golomb_decode(bitstream, m=DEFAULT_M):
     """
-    Decodes a Golomb-encoded value from a BitStream.
+    Decode a Golomb-encoded value from a BitStream.
 
-    :param bitstream: The BitStream object containing the encoded data.
-    :param m: The Golomb parameter (positive integer).
-    :return: The decoded integer and the number of bits read.
+    :param bitstream: The BitStream containing the encoded value.
+    :param m: The Golomb divisor (positive integer).
+    :return: The decoded integer value.
     """
     if m <= 0:
-        raise ValueError("M must be a positive integer")
-    if not isinstance(bitstream, BitStream):
-        raise TypeError("bit_stream must be an instance of BitStream")
+        raise ValueError("m must be a positive integer")
 
-    # Decode the unary part
+    # Read unary part (count number of '1's before the first '0')
     q = 0
     while bitstream.read(1).bin == '1':
         q += 1
 
-    # Decode the remainder part
-    b = (m - 1).bit_length()  # Number of bits for the remainder
+    # Determine the number of bits for the remainder
+    b = (m - 1).bit_length()
     threshold = (1 << b) - m
 
-    # Read the next `b-1` bits first
-    r_bits = bitstream.read(b - 1).bin
-    r = int(r_bits, 2)
+    # Read the remainder bits
+    remainder_bits = b - 1
+    remainder = bitstream.read(remainder_bits).uint
+    if remainder >= threshold:
+        remainder = (remainder << 1) | bitstream.read(1).uint
+        remainder -= threshold
 
-    if r >= threshold:  # If remainder is above threshold, read one more bit
-        r = (r << 1) | int(bitstream.read(1).bin, 2)
-        r -= threshold
-
-    # Calculate the decoded value
-    n = q * m + r
+    # Decode the value
+    n = q * m + remainder
     return n
