@@ -61,3 +61,5 @@ class SpatialDecoder:
                 this_shifted = integer_decoder.decode_next()
                 this_pixel = integers.shifted_tuple_to_int_tuple(this_shifted, 256)
                 self._output_image[i, j] = this_pixel
+
+        print()

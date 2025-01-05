@@ -1,8 +1,8 @@
 import pandas as pd
 import utils.analysis as analysis
 from bitstring import BitStream
-from qowi.spatial_decoder import SpatialDecoder
-from qowi.spatial_encoder import SpatialEncoder
+from qowi import SpatialDecoder
+from qowi import SpatialEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 

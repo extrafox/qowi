@@ -88,3 +88,5 @@ class QOWIDecoder:
                 stack.append((level + 1, filter, 2 * i, 2 * j + 1))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j + 1))
+
+        print()

@@ -2,6 +2,8 @@ import numpy as np
 import qowi.entropy as entropy
 import time
 from bitstring import Bits, BitStream
+
+import qowi.header
 from qowi import integers
 from qowi.integer_encoder import IntegerEncoder
 from skimage import io
@@ -76,22 +78,33 @@ class QOWIEncoder:
         elif self._soft_threshold > -1:
             self._wavelet.apply_soft_threshold(self._soft_threshold)
 
-        self._header.write(self._bitstream)
+        buffer = BitStream()
 
-        # encode the top value of the wavelet
+        # encode the top value of the wavelet to the buffer
         root_integer = self._wavelet.wavelet[0, 0]
         root_zigzag = integers.int_tuple_to_zigzag_tuple(root_integer)
-        self._bitstream.append(entropy.simple_encode_tuple(root_zigzag))
+        buffer.append(entropy.simple_encode_tuple(root_zigzag))
 
-        self._write_coefficients()
+        # encode the coefficients to the buffer
+        self._write_coefficients(buffer)
+
+        top_of_header_bits = self._header.top_of_header()
+        total_bits = top_of_header_bits.len + qowi.header.NUM_PARTIAL_BITS + buffer.len
+        self._header.num_partial = 8 - total_bits % 8
+        partial_header_bits = self._header.num_partial_header()
+
+        self._bitstream.append(top_of_header_bits)
+        self._bitstream.append(partial_header_bits)
+        self._bitstream.append(buffer)
+        self._bitstream.append('0b' + '0' * self._header.num_partial)
 
         end_time = time.time()
         self.encode_duration = end_time - start_time
         self._finished = True
 
-    def _write_coefficients(self):
+    def _write_coefficients(self, buffer: BitStream):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
-        integer_encoder = IntegerEncoder(self._bitstream, DEFAULT_CACHE_SIZE)
+        integer_encoder = IntegerEncoder(buffer, DEFAULT_CACHE_SIZE)
 
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1
@@ -125,5 +138,6 @@ class QOWIEncoder:
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j))
                 stack.append((level + 1, filter, 2 * i + 1, 2 * j + 1))
 
+        print()
         integer_encoder.finish()
         self.stats = integer_encoder.stats

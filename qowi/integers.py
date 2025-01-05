@@ -50,6 +50,9 @@ def round_scaled_integer(value, scale, round_to_fraction):
     # Convert the rounding fraction to the scaled integer domain
     rounding_increment = int(round_to_fraction * scale)
 
+    if rounding_increment == 0:
+        return value
+
     # Perform rounding in the scaled integer domain
     rounded_value = ((value + rounding_increment // 2) // rounding_increment) * rounding_increment
 
@@ -69,6 +72,9 @@ def round_scaled_integer_ndarray(values, scale, round_to_fraction):
     """
     # Convert the rounding fraction to the scaled integer domain
     rounding_increment = int(round_to_fraction * scale)
+
+    if rounding_increment == 0:
+        return values
 
     # Perform rounding in the scaled integer domain
     rounded_values = ((values + rounding_increment // 2) // rounding_increment) * rounding_increment

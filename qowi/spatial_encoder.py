@@ -74,5 +74,6 @@ class SpatialEncoder:
                 this_shifted = integers.int_tuple_to_shifted_tuple(this_pixel, 256)
                 integer_encoder.encode_next(this_shifted)
 
+        print()
         integer_encoder.finish()
         self.stats = integer_encoder.stats

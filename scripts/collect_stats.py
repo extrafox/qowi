@@ -1,8 +1,8 @@
 import pandas as pd
 import utils.analysis as analysis
 from bitstring import BitStream
-from qowi.qowi_decoder import QOWIDecoder
-from qowi.qowi_encoder import QOWIEncoder
+from qowi import QOWIDecoder
+from qowi import QOWIEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 
@@ -11,8 +11,8 @@ TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_1
 PRINT_STATS = True
 HARD_THRESHOLD = 0
 SOFT_THRESHOLD = -1
-WAVELET_LEVELS = 2
-WAVELET_PRECISION = 0.5
+WAVELET_LEVELS = 10
+WAVELET_PRECISION = 0
 
 ###
 ### Prepare image and intermediates
