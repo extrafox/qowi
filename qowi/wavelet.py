@@ -1,17 +1,31 @@
 import math
 import numpy as np
-import qowi.integers as uint10
 from numpy import ndarray
 
-from qowi import integers
+def haar_encode(a, b, c, d):
+    ll = a + b + c + d
+    hl = a + b - c - d
+    lh = a - b + c - d
+    hh = a - b - c + d
 
+    return ll, hl, lh, hh
+
+def haar_decode(ll, hl, lh, hh):
+    a = (ll + hl + lh + hh) // 4
+    b = (ll + hl - lh - hh) // 4
+    c = (ll - hl + lh - hh) // 4
+    d = (ll - hl - lh + hh) // 4
+
+    return a, b, c, d
 
 class Wavelet:
-    def __init__(self, width=0, height=0):
+    def __init__(self, width=0, height=0, encode_levels=10, round_bits=0):
         self.width = 0
         self.height = 0
         self.length = 0
         self.num_levels = 0
+        self.encode_levels = encode_levels
+        self.round_bits = round_bits
         self.wavelet = None
         self.carry_over = None
 
@@ -27,46 +41,21 @@ class Wavelet:
             self.num_levels = max(math.ceil(math.log2(width)), math.ceil(math.log2(height)))
             self.length = 2 ** self.num_levels
 
-        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.float16)
-        self._gen_carry_over()
-
-    def _gen_carry_over(self):
-        self.carry_over = []
-        for level in range(self.num_levels):
-            self.carry_over.append(np.zeros((2 ** level, 2 ** level, 3), dtype=np.float16))
+        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.int64)
 
     def _gen_wavelet(self):
         for dest_level in reversed(range(self.num_levels)):
             dest_length = 2 ** dest_level
-            dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.float16)
+            dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.int64)
 
             for i in range(dest_length):
                 for j in range(dest_length):
-                    a10 = self.wavelet[2 * i, 2 * j]
-                    b10 = self.wavelet[2 * i, 2 * j + 1]
-                    c10 = self.wavelet[2 * i + 1, 2 * j]
-                    d10 = self.wavelet[2 * i + 1, 2 * j + 1]
+                    a = self.wavelet[2 * i, 2 * j]
+                    b = self.wavelet[2 * i, 2 * j + 1]
+                    c = self.wavelet[2 * i + 1, 2 * j]
+                    d = self.wavelet[2 * i + 1, 2 * j + 1]
 
-                    a8 = np.trunc(a10)
-                    b8 = np.trunc(b10)
-                    c8 = np.trunc(c10)
-                    d8 = np.trunc(d10)
-
-                    if dest_level < self.num_levels - 1:
-                        a_co = a10 - a8
-                        b_co = b10 - b8
-                        c_co = c10 - c8
-                        d_co = d10 - d8
-
-                        self.carry_over[dest_level + 1][2 * i, 2 * j] = a_co
-                        self.carry_over[dest_level + 1][2 * i, 2 * j + 1] = b_co
-                        self.carry_over[dest_level + 1][2 * i + 1, 2 * j] = c_co
-                        self.carry_over[dest_level + 1][2 * i + 1, 2 * j + 1] = d_co
-
-                    ll = (a8 + b8 + c8 + d8) / 4
-                    hl = (a8 - b8 + c8 - d8) / 4
-                    lh = (a8 + b8 - c8 - d8) / 4
-                    hh = (a8 - b8 - c8 + d8) / 4
+                    ll, hl, lh, hh = haar_encode(a, b, c, d)
 
                     dest_wavelets[i, j] = ll
                     dest_wavelets[i, dest_length + j] = hl
@@ -87,18 +76,12 @@ class Wavelet:
 
         return self
 
-    # def as_integer_array(self):
-    #     return integers.float_array_to_integer_array(self.wavelet, shift_count=2)
-    #
-    # def from_uint10_array(self, integer_array):
-    #     self.wavelet = integers.integer_array_to_float16_array(integer_array)
-
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
 
         for source_level in range(self.num_levels):
             source_length = 2 ** source_level
-            dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.float16)
+            dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.int64)
 
             for i in range(source_length):
                 for j in range(source_length):
@@ -107,27 +90,16 @@ class Wavelet:
                     lh = ret_wavelet[source_length + i, j]
                     hh = ret_wavelet[source_length + i, source_length + j]
 
-                    a8 = ll + hl + lh + hh
-                    b8 = ll - hl + lh - hh
-                    c8 = ll + hl - lh - hh
-                    d8 = ll - hl - lh + hh
+                    a, b, c, d = haar_decode(ll, hl, lh, hh)
 
-                    if source_level < self.num_levels - 1:
-                        a_co = self.carry_over[source_level + 1][2 * i, 2 * j]
-                        b_co = self.carry_over[source_level + 1][2 * i, 2 * j + 1]
-                        c_co = self.carry_over[source_level + 1][2 * i + 1, 2 * j]
-                        d_co = self.carry_over[source_level + 1][2 * i + 1, 2 * j + 1]
-                    else:
-                        a_co, b_co, c_co, d_co = 0, 0, 0, 0
-
-                    dest_wavelets[2 * i, 2 * j] = a8 + a_co
-                    dest_wavelets[2 * i, 2 * j + 1] = b8 + b_co
-                    dest_wavelets[2 * i + 1, 2 * j] = c8 + c_co
-                    dest_wavelets[2 * i + 1, 2 * j + 1] = d8 + d_co
+                    dest_wavelets[2 * i, 2 * j] = a
+                    dest_wavelets[2 * i, 2 * j + 1] = b
+                    dest_wavelets[2 * i + 1, 2 * j] = c
+                    dest_wavelets[2 * i + 1, 2 * j + 1] = d
 
             ret_wavelet[:dest_wavelets.shape[0], :dest_wavelets.shape[1]] = dest_wavelets
 
-        return np.round(ret_wavelet[:self.width, :self.height]).astype(np.uint8)
+        return ret_wavelet[:self.width, :self.height].astype(np.uint8)
 
     def apply_hard_threshold(self, threshold: float):
         root_element = self.wavelet[0, 0]

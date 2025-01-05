@@ -6,13 +6,11 @@ from qowi.qowi_encoder import QOWIEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 
-TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
-# TEST_IMAGE_PATH = "media/mango_32x32.jpg"
+# TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
+TEST_IMAGE_PATH = "media/mango_32x32.jpg"
 PRINT_STATS = True
 HARD_THRESHOLD = 0
 SOFT_THRESHOLD = -1
-BIT_SHIFT = 0
-NUM_CARRY_OVER_BITS = 2
 
 ###
 ### Prepare image and intermediates
@@ -24,9 +22,9 @@ source_image = io.imread(TEST_IMAGE_PATH)
 original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-print("Encoding with bit shift {}, carry over {}, soft threshold {} and hard threshold {}...".format(BIT_SHIFT, NUM_CARRY_OVER_BITS, SOFT_THRESHOLD, HARD_THRESHOLD))
+print("Encoding with soft threshold {} and hard threshold {}...".format(SOFT_THRESHOLD, HARD_THRESHOLD))
 encoded_bitstream = BitStream()
-e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD, BIT_SHIFT, NUM_CARRY_OVER_BITS)
+e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD)
 e.from_array(source_image)
 e.to_bitstream(encoded_bitstream)
 e.encode()

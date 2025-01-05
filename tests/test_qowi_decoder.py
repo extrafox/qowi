@@ -81,7 +81,7 @@ TEST_IMAGES = [
     ], dtype=np.uint8),
 ]
 
-class TestQOWIEncoder(unittest.TestCase):
+class TestQOWIDecoder(unittest.TestCase):
 
     def test_instantiation(self):
         d = QOWIDecoder()
@@ -115,7 +115,7 @@ class TestQOWIEncoder(unittest.TestCase):
         d.decode()
         decoded_image = d.as_array()
 
-        self.assertTrue((decoded_image == source_image).all())
+        self.assertTrue(np.array_equal(decoded_image, source_image))
 
     def test_round_trip_from_two_image(self):
         source_image = TEST_IMAGES[2]
@@ -131,7 +131,7 @@ class TestQOWIEncoder(unittest.TestCase):
         d.decode()
         decoded_image = d.as_array()
 
-        self.assertTrue((decoded_image == source_image).all())
+        self.assertTrue(np.array_equal(decoded_image, source_image))
 
 
     def test_round_trip_from_three_image(self):
@@ -148,73 +148,7 @@ class TestQOWIEncoder(unittest.TestCase):
         d.decode()
         decoded_image = d.as_array()
 
-        self.assertTrue((decoded_image == source_image).all())
-
-
-    def test_round_trip_from_zero_image_with_bit_shift_two(self):
-        source_image = TEST_IMAGES[0]
-        encoded_bits = BitStream()
-
-        e = QOWIEncoder(bit_shift=2)
-        e.from_array(source_image)
-        e.to_bitstream(encoded_bits)
-        e.encode()
-
-        d = QOWIDecoder()
-        d.from_bitstream(encoded_bits)
-        d.decode()
-        decoded_image = d.as_array()
-
-        self.assertTrue((decoded_image == source_image).all())
-
-
-    def test_round_trip_from_three_image_with_bit_shift_two(self):
-        source_image = TEST_IMAGES[3]
-        encoded_bits = BitStream()
-
-        e = QOWIEncoder(bit_shift=2)
-        e.from_array(source_image)
-        e.to_bitstream(encoded_bits)
-        e.encode()
-
-        d = QOWIDecoder()
-        d.from_bitstream(encoded_bits)
-        d.decode()
-        decoded_image = d.as_array()
-
-        self.assertTrue((decoded_image == source_image).all())
-
-    def test_round_trip_from_three_image_with_bit_shift_one(self):
-        source_image = TEST_IMAGES[3]
-        encoded_bits = BitStream()
-
-        e = QOWIEncoder(bit_shift=1)
-        e.from_array(source_image)
-        e.to_bitstream(encoded_bits)
-        e.encode()
-
-        d = QOWIDecoder()
-        d.from_bitstream(encoded_bits)
-        d.decode()
-        decoded_image = d.as_array()
-
-        self.assertTrue((decoded_image == source_image).all())
-
-    def test_round_trip_from_seven_image_with_bit_shift_one(self):
-        source_image = TEST_IMAGES[7]
-        encoded_bits = BitStream()
-
-        e = QOWIEncoder(bit_shift=1)
-        e.from_array(source_image)
-        e.to_bitstream(encoded_bits)
-        e.encode()
-
-        d = QOWIDecoder()
-        d.from_bitstream(encoded_bits)
-        d.decode()
-        decoded_image = d.as_array()
-
-        self.assertTrue((decoded_image == source_image).all())
+        self.assertTrue(np.array_equal(decoded_image, source_image))
 
 if __name__ == '__main__':
     unittest.main()

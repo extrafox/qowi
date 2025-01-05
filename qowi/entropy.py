@@ -2,22 +2,23 @@ import math
 import numpy as np
 from bitstring import BitArray, Bits, BitStream
 
+DEFAULT_M = 60 # TODO: figure out how to optimize this number for each data distribution
 
-def golomb_encode_tuple(uint_tuple, m=16) -> Bits:
+def golomb_encode_tuple(uint_tuple, m=DEFAULT_M) -> Bits:
     ret = BitArray()
     for uint_value in uint_tuple:
         ret.append(golomb_encode(uint_value, m))
     return ret
 
 
-def golomb_decode_tuple(bitstream: BitStream, num_to_decode=1, m=16) -> tuple:
+def golomb_decode_tuple(bitstream: BitStream, num_to_decode=1, m=DEFAULT_M) -> tuple:
     ret = [None] * num_to_decode
     for i in range(num_to_decode):
         ret[i] = golomb_decode(bitstream, m)
     return tuple(ret)
 
 
-def golomb_encode(n, m=16):
+def golomb_encode(n, m=DEFAULT_M):
     """
     Encodes an integer n using Golomb coding with parameter M and returns a Bits object.
 
@@ -51,7 +52,7 @@ def golomb_encode(n, m=16):
     return unary
 
 
-def golomb_decode(bitstream: BitStream, m=16):
+def golomb_decode(bitstream: BitStream, m=DEFAULT_M):
     """
     Decodes a Golomb-encoded value from a BitStream.
 

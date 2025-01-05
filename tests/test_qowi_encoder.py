@@ -64,7 +64,7 @@ TEST_IMAGES = [
     ], dtype = 'uint8'),
 ]
 
-class TestEncoder(unittest.TestCase):
+class TestQOWIEncoder(unittest.TestCase):
 
     def test_encoder_instantiation(self):
         e = QOWIEncoder()
@@ -78,22 +78,6 @@ class TestEncoder(unittest.TestCase):
         e.to_bitstream(bitstream)
         e.encode()
 
-        self.assertGreater(bitstream.len, 32)
-
-    def test_encode_from_zero_image_bit_shift_zero(self):
-        e = QOWIEncoder(bit_shift=0)
-        e.from_array(TEST_IMAGES[0])
-        bitstream = BitStream()
-        e.to_bitstream(bitstream)
-        e.encode()
-        self.assertGreater(bitstream.len, 32)
-
-    def test_encode_from_zero_image_bit_shift_two(self):
-        e = QOWIEncoder(bit_shift=2)
-        e.from_array(TEST_IMAGES[0])
-        bitstream = BitStream()
-        e.to_bitstream(bitstream)
-        e.encode()
         self.assertGreater(bitstream.len, 32)
 
     def test_encode_from_three_image(self):
