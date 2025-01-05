@@ -20,10 +20,13 @@ Project Status
 
 * CLI for performing QOWI encode and decode operations on images
 * Wavelet generation at configurable number of levels
+* Losslessly encode (tested on single image) at around 80% of original
+* Lossy encoding using wavelet thresholding
 * (coming soon) Configurable rounding at successive wavelet approximation levels
 * (coming soon) Hard and soft thresholding of the wavelet coefficients
 * (coming soon) Optimized traversal of approximations for encoding
 * (coming soon) Optimized universal code, e.g. [Golomb](https://en.wikipedia.org/wiki/Golomb_coding) or similar code
+* (coming soon) Better performance (within limits of Python)
 
 Usage
 -----
