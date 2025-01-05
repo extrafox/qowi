@@ -4,8 +4,6 @@ import unittest
 from qowi.wavelet import Wavelet, haar_decode, haar_encode
 from skimage import io
 
-from utils.test_images import TEST_WAVELETS
-
 TEST_IMAGES = [
     np.array([
         [[255, 255, 255], [0, 0, 0]],
