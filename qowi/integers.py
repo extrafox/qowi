@@ -33,3 +33,44 @@ def shifted_tuple_to_int_tuple(zigzag_tuple: tuple, num_values) -> tuple:
 
 def subtract_tuples(first: tuple, second: tuple) -> tuple:
     return tuple(int(a) - int(b) for a, b in zip(first, second))
+
+
+def round_scaled_integer(value, scale, round_to_fraction):
+    """
+    Round a scaled integer to a specified fraction of its scale.
+
+    Args:
+        value (int): The integer to be rounded.
+        scale (int): The scale factor (e.g., 4, 16, 64).
+        round_to_fraction (float): The fraction of the scale to round to (e.g., 0.25 for 1/4th of scale).
+
+    Returns:
+        int: The rounded integer value at the same scale as the input.
+    """
+    # Convert the rounding fraction to the scaled integer domain
+    rounding_increment = int(round_to_fraction * scale)
+
+    # Perform rounding in the scaled integer domain
+    rounded_value = ((value + rounding_increment // 2) // rounding_increment) * rounding_increment
+
+    return rounded_value
+
+def round_scaled_integer_ndarray(values, scale, round_to_fraction):
+    """
+    Round a scaled ndarray of integers to a specified fraction of its scale.
+
+    Args:
+        values (ndarray): The array of integers to be rounded.
+        scale (int): The scale factor (e.g., 4, 16, 64).
+        round_to_fraction (float): The fraction of the scale to round to (e.g., 0.25 for 1/4th of scale).
+
+    Returns:
+        ndarray: The rounded array of integers at the same scale as the input.
+    """
+    # Convert the rounding fraction to the scaled integer domain
+    rounding_increment = int(round_to_fraction * scale)
+
+    # Perform rounding in the scaled integer domain
+    rounded_values = ((values + rounding_increment // 2) // rounding_increment) * rounding_increment
+
+    return rounded_values

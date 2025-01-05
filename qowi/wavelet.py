@@ -2,6 +2,9 @@ import math
 import numpy as np
 from numpy import ndarray
 
+from qowi import integers
+
+
 def haar_encode(a, b, c, d):
     ll = a + b + c + d
     hl = a + b - c - d
@@ -19,12 +22,12 @@ def haar_decode(ll, hl, lh, hh):
     return a, b, c, d
 
 class Wavelet:
-    def __init__(self, width=0, height=0, encode_levels=10, precision=0):
+    def __init__(self, width=0, height=0, wavelet_levels=10, precision=0):
         self.width = 0
         self.height = 0
         self.length = 0
         self.num_levels = 0
-        self.encode_levels = encode_levels
+        self.wavelet_levels = wavelet_levels
         self.precision = precision
         self.wavelet = None
         self.carry_over = None
@@ -44,7 +47,7 @@ class Wavelet:
         self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.int64)
 
     def _gen_wavelet(self):
-        lowest_order_level = max(self.num_levels - self.encode_levels, 0)
+        lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
         for dest_level in reversed(range(lowest_order_level, self.num_levels)):
             dest_length = 2 ** dest_level
             dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.int64)
@@ -57,6 +60,10 @@ class Wavelet:
                     d = self.wavelet[2 * i + 1, 2 * j + 1]
 
                     ll, hl, lh, hh = haar_encode(a, b, c, d)
+
+                    if self.precision > 0:
+                        scaling_factor = (self.num_levels - dest_level) * 4
+                        ll = integers.round_scaled_integer_ndarray(ll, scaling_factor, self.precision)
 
                     dest_wavelets[i, j] = ll
                     dest_wavelets[i, dest_length + j] = hl
@@ -79,7 +86,7 @@ class Wavelet:
 
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
-        lowest_order_level = max(self.num_levels - self.encode_levels, 0)
+        lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
         for source_level in range(lowest_order_level, self.num_levels):
             source_length = 2 ** source_level
             dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.int64)

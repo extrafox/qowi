@@ -11,6 +11,8 @@ TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_1
 PRINT_STATS = True
 HARD_THRESHOLD = 0
 SOFT_THRESHOLD = -1
+WAVELET_LEVELS = 2
+WAVELET_PRECISION = 0.5
 
 ###
 ### Prepare image and intermediates
@@ -22,9 +24,9 @@ source_image = io.imread(TEST_IMAGE_PATH)
 original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-print("Encoding with soft threshold {} and hard threshold {}...".format(SOFT_THRESHOLD, HARD_THRESHOLD))
+print("Encoding with wavelet levels {}, wavelet precision {}, soft threshold {} and hard threshold {}...".format(WAVELET_LEVELS, WAVELET_PRECISION, SOFT_THRESHOLD, HARD_THRESHOLD))
 encoded_bitstream = BitStream()
-e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD)
+e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD, WAVELET_LEVELS, WAVELET_PRECISION)
 e.from_array(source_image)
 e.to_bitstream(encoded_bitstream)
 e.encode()
