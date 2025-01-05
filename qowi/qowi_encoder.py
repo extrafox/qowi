@@ -10,16 +10,29 @@ from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
 DEFAULT_CACHE_SIZE = 65533
+DEFAULT_HARD_THRESHOLD = -1
+DEFAULT_SOFT_THRESHOLD = -1
+DEFAULT_WAVELET_ENCODE_LEVELS = 2
+
+MIN_HARD_THRESHOLD = -1
+MIN_SOFT_THRESHOLD = -1
+MIN_WAVELET_ENCODE_LEVELS = 0
+
+MAX_HARD_THRESHOLD = 510
+MAX_SOFT_THRESHOLD = 510
+MAX_WAVELET_ENCODE_LEVELS = 15
 
 class QOWIEncoder:
-    def __init__(self, hard_threshold=-1, soft_threshold=-1):
-        self._hard_threshold = max(-1, min(hard_threshold, 510))
-        self._soft_threshold = max(-1, min(soft_threshold, 510))
+    def __init__(self, hard_threshold=DEFAULT_HARD_THRESHOLD, soft_threshold=DEFAULT_SOFT_THRESHOLD, wavelet_encode_levels=DEFAULT_WAVELET_ENCODE_LEVELS):
+        self._hard_threshold = max(MIN_HARD_THRESHOLD, min(hard_threshold, MAX_HARD_THRESHOLD))
+        self._soft_threshold = max(MIN_SOFT_THRESHOLD, min(soft_threshold, MAX_SOFT_THRESHOLD))
+        self._wavelet_encode_levels = max(MIN_WAVELET_ENCODE_LEVELS, min(wavelet_encode_levels, MAX_WAVELET_ENCODE_LEVELS))
 
         self._header = Header()
         self._header.cache_size = DEFAULT_CACHE_SIZE
+        self._header.wavelet_encode_levels = self._wavelet_encode_levels
 
-        self._wavelet = Wavelet()
+        self._wavelet = Wavelet(encode_levels=self._wavelet_encode_levels)
         self._bitstream = None
 
         self._finished = False

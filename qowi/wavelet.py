@@ -19,13 +19,13 @@ def haar_decode(ll, hl, lh, hh):
     return a, b, c, d
 
 class Wavelet:
-    def __init__(self, width=0, height=0, encode_levels=10, round_bits=0):
+    def __init__(self, width=0, height=0, encode_levels=10, precision=0):
         self.width = 0
         self.height = 0
         self.length = 0
         self.num_levels = 0
         self.encode_levels = encode_levels
-        self.round_bits = round_bits
+        self.precision = precision
         self.wavelet = None
         self.carry_over = None
 
@@ -44,7 +44,8 @@ class Wavelet:
         self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.int64)
 
     def _gen_wavelet(self):
-        for dest_level in reversed(range(self.num_levels)):
+        lowest_order_level = max(self.num_levels - self.encode_levels, 0)
+        for dest_level in reversed(range(lowest_order_level, self.num_levels)):
             dest_length = 2 ** dest_level
             dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.int64)
 
@@ -78,8 +79,8 @@ class Wavelet:
 
     def as_image(self):
         ret_wavelet = self.wavelet.copy()
-
-        for source_level in range(self.num_levels):
+        lowest_order_level = max(self.num_levels - self.encode_levels, 0)
+        for source_level in range(lowest_order_level, self.num_levels):
             source_length = 2 ** source_level
             dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.int64)
 

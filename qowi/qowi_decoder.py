@@ -40,7 +40,7 @@ class QOWIDecoder:
             raise RuntimeError("Destination must be prepared to encode")
 
         self._header.read(self._bitstream)
-        self._wavelet = Wavelet(self._header.width, self._header.height)
+        self._wavelet = Wavelet(self._header.width, self._header.height, self._header.wavelet_encode_levels)
 
         # decode the top value of the wavelet
         root_zigzag = entropy.simple_decode_tuple(self._bitstream, 3)
