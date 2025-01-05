@@ -7,10 +7,12 @@ from skimage import io
 from qowi.header import Header
 from utils.progress_bar import progress_bar
 
+DEFAULT_CACHE_SIZE = 256
+
 class SpatialEncoder:
-    def __init__(self, bit_shift=0):
+    def __init__(self):
         self._header = Header()
-        self._header.bit_shift = max(0, min(bit_shift, 7))
+        self._header.cache_size = DEFAULT_CACHE_SIZE
 
         if self._header.bit_shift > 0:
             warnings.warn("Bit shift is currently not implemented", category=UserWarning)
@@ -56,7 +58,8 @@ class SpatialEncoder:
         self._finished = True
 
     def _write_pixels(self):
-        integer_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
+        integer_encoder = IntegerEncoder(self._bitstream, DEFAULT_CACHE_SIZE)
+        self._header.cache_size = DEFAULT_CACHE_SIZE
 
         number_of_tokens = self._source_image.shape[0] * self._source_image.shape[1]
         counter = 1

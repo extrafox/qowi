@@ -6,7 +6,6 @@ from qowi.header import Header
 from qowi.integer_decoder import IntegerDecoder
 from utils.progress_bar import progress_bar
 
-
 class SpatialDecoder:
     def __init__(self):
         self._header = Header()

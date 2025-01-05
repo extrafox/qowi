@@ -1,7 +1,5 @@
 from bitstring import BitStream, Bits
 
-DEFAULT_CACHE_SIZE = 65534 # maximum size that fits can be referenced by a 54 bit code
-
 WIDTH_NUM_BITS = 16
 HEIGHT_NUM_BITS = 16
 CACHE_NUM_BITS = 16
@@ -11,7 +9,7 @@ class Header:
     def __init__(self):
         self.width = 0
         self.height = 0
-        self.cache_size = DEFAULT_CACHE_SIZE
+        self.cache_size = None
         self.num_carry_over_bits = 0
         self.bit_shift = 0
 

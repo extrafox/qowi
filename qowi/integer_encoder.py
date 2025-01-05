@@ -1,7 +1,7 @@
 import qowi.entropy as entropy
 import qowi.integers as integers
 from bitstring import BitArray, Bits, BitStream
-from qowi.lru_cache import LRUCache
+from qowi.mflru_cache import MFLRUCache
 
 ZERO_INTEGER = (0, 0, 0)
 OP_CODE_RUN = Bits('0b00')
@@ -15,7 +15,7 @@ def gen_difference_value_encoding(this_integer: tuple):
     ret.append(OP_CODE_VALUE)
 
     zigzag = integers.int_tuple_to_zigzag_tuple(this_integer)
-    ret.append(entropy.golomb_encode_tuple(zigzag))
+    ret.append(entropy.simple_encode_tuple(zigzag))
 
     return ret
 
@@ -23,7 +23,7 @@ def gen_difference_value_encoding(this_integer: tuple):
 def gen_cache_encoding(position):
     ret = BitArray()
     ret.append(OP_CODE_CACHE)
-    ret.append(entropy.golomb_encode(position))
+    ret.append(entropy.simple_encode(position))
     return ret
 
 
@@ -33,7 +33,7 @@ def gen_delta_encoding(last_integer: tuple, this_integer: tuple):
 
     delta = integers.subtract_tuples(last_integer, this_integer)
     delta_zigzag = integers.int_tuple_to_zigzag_tuple(delta)
-    ret.append(entropy.golomb_encode_tuple(delta_zigzag))
+    ret.append(entropy.simple_encode_tuple(delta_zigzag))
 
     return ret
 
@@ -41,7 +41,7 @@ def gen_delta_encoding(last_integer: tuple, this_integer: tuple):
 def gen_run_encoding(run_length):
     ret = BitArray()
     ret.append(OP_CODE_RUN)
-    ret.append(entropy.golomb_encode(run_length - 1))
+    ret.append(entropy.simple_encode(run_length - 1))
     return ret
 
 
@@ -50,7 +50,7 @@ class IntegerEncoder:
         self._response = bit_stream
         self._run_length = 0
         self._last_integer = ZERO_INTEGER
-        self._cache = LRUCache(cache_size)
+        self._cache = MFLRUCache(cache_size)
         self._cache.observe(ZERO_INTEGER)
         self.stats = []
         self._finished = False

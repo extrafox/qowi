@@ -8,7 +8,6 @@ from qowi.integer_decoder import IntegerDecoder
 from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
-
 class QOWIDecoder:
     def __init__(self):
         self._header = Header()
@@ -44,7 +43,7 @@ class QOWIDecoder:
         self._wavelet = Wavelet(self._header.width, self._header.height)
 
         # decode the top value of the wavelet
-        root_zigzag = entropy.golomb_decode_tuple(self._bitstream, 3)
+        root_zigzag = entropy.simple_decode_tuple(self._bitstream, 3)
         root_integer = integers.zigzag_tuple_to_int_tuple(root_zigzag)
         self._wavelet.wavelet[0, 0] = root_integer
 

@@ -1,10 +1,7 @@
-import sys
-import warnings
 import numpy as np
 import qowi.entropy as entropy
 import time
 from bitstring import Bits, BitStream
-
 from qowi import integers
 from qowi.integer_encoder import IntegerEncoder
 from skimage import io
@@ -12,12 +9,15 @@ from qowi.header import Header
 from qowi.wavelet import Wavelet
 from utils.progress_bar import progress_bar
 
+DEFAULT_CACHE_SIZE = 256
+
 class QOWIEncoder:
     def __init__(self, hard_threshold=-1, soft_threshold=-1):
         self._hard_threshold = max(-1, min(hard_threshold, 510))
         self._soft_threshold = max(-1, min(soft_threshold, 510))
 
         self._header = Header()
+        self._header.cache_size = DEFAULT_CACHE_SIZE
 
         self._wavelet = Wavelet()
         self._bitstream = None
@@ -61,7 +61,7 @@ class QOWIEncoder:
         # encode the top value of the wavelet
         root_integer = self._wavelet.wavelet[0, 0]
         root_zigzag = integers.int_tuple_to_zigzag_tuple(root_integer)
-        self._bitstream.append(entropy.golomb_encode_tuple(root_zigzag))
+        self._bitstream.append(entropy.simple_encode_tuple(root_zigzag))
 
         self._write_coefficients()
 
@@ -71,7 +71,7 @@ class QOWIEncoder:
 
     def _write_coefficients(self):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
-        integer_encoder = IntegerEncoder(self._bitstream, self._header.cache_size)
+        integer_encoder = IntegerEncoder(self._bitstream, DEFAULT_CACHE_SIZE)
 
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1

@@ -6,10 +6,9 @@ from qowi.spatial_encoder import SpatialEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 
-# TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
-TEST_IMAGE_PATH = "media/mango_32x32.jpg"
+TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
+# TEST_IMAGE_PATH = "media/mango_32x32.jpg"
 PRINT_STATS = True
-BIT_SHIFT = 0
 
 ###
 ### Prepare image and intermediates
@@ -21,9 +20,9 @@ source_image = io.imread(TEST_IMAGE_PATH)
 original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-print("Encoding with bit shift {}...".format(BIT_SHIFT))
+print("Encoding ...")
 encoded_bitstream = BitStream()
-e = SpatialEncoder(BIT_SHIFT)
+e = SpatialEncoder()
 e.from_array(source_image)
 e.to_bitstream(encoded_bitstream)
 e.encode()
