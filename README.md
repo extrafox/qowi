@@ -11,7 +11,7 @@ by, and the name is an homage to, the
 Current Project Goals
 ---------------------
 
-* Support lossless compression of images and wavelets on par formats like PNG and QOI
+* Support lossless compression of images and wavelets on par with formats like PNG and QOI
 * Support lossy compression with file size and image quality comparable to JPEG or WebP
 * Have fun and learn about image and wavelet compression
 
@@ -94,7 +94,7 @@ pixel position and comparing to the last one, the encoder will see which
 coding method results in the shortest code and it will use it.
 
 QOWI follows this model, but with some modifications that are motivated
-by the desire to encode wavelet, and specifically, wavelet coefficients.
+by the desire to encode wavelets, and specifically, wavelet coefficients.
 The considerations for encoding wavelets include, dealing with signed floating
 point values, more than 8 bits required to represent any particular
 coefficient and less similarity between adjacent codes.
@@ -115,10 +115,10 @@ was only a passing interest. But, QOI surprised me. How could it be
 that such a simple format could emerge in the 2020s when academics
 have been working in this problem domain for decades?
 
-QOI is an approach that aligns will with my software development
+QOI is an approach that aligns well with my software development
 experience and it started me thinking. If academics had failed to
 find such a simple solution for standard raster image compression, opting instead
-for convoluted solutions like PNG, then maybe wavelets compression
+for convoluted solutions like PNG, then maybe wavelet compression
 could be tackled with a similar approach and comparable results.
 
 We are yet to see if QOWI will live up to expectations, but here we are...
@@ -128,7 +128,8 @@ Haar Wavelets
 
 I'm not going to go into great detail about Wavelets in general
 or even Haar wavelets specifically. For that, you can find many
-[resources online](https://en.wikipedia.org/wiki/Haar_wavelet). However, I will talk about how Haar was a good
+[resources online](https://en.wikipedia.org/wiki/Haar_wavelet). However,
+I will talk about how Haar was a good
 choice for this project. I would love to hear from wavelet experts
 about this approach and where better solutions have already been
 found or where this approach could be extended.
@@ -137,7 +138,7 @@ In a nutshell, a 2D Haar wavelet construction allows you to take
 four pixels in the spatial domain and transform them into the wavelet
 domain. The translation is lossless, but it does require more bits
 to store the same pixel values in the wavelet domain. [You can
-thank Heisnberg](https://en.wikipedia.org/wiki/Uncertainty_principle)
+thank Heisenberg](https://en.wikipedia.org/wiki/Uncertainty_principle)
 for that, I suppose.
 
 ### Basic Construction ###
@@ -200,7 +201,7 @@ point number. With each wavelet level you encode, you need to add
 more bits in order to avoid rounding errors.
 
 If you are starting with 8-bit integers in a typical raster image,
-then, you will need 10-bits to encode the wavelets. To see how this
+then, you will need 10-bits to encode the first wavelet level. To see how this
 is the case, you can look at the maximum value for the addition of
 four 8-bit integers:
 
@@ -211,10 +212,10 @@ LL = (255 + 255 + 255 + 255) = 1020
 The filter coefficients are not typically processed recursively,
 but the approximation coefficients are. This means that you
 will need to add two additional bits for each wavelet level
-to store the approximation sum without data loss.
+in order to store the approximation sum without data loss.
 
-The current implementation here uses 64-bit ints to store the
-coefficients which means that you will be limited to 28 wavelet.
+The current implementation uses 64-bit ints to store the
+coefficients which means that you will be limited to 28 wavelet levels.
 However, in practice, while I don't know how many levels is useful
 in other contexts, you probably won't want to go that deep for
 practical image compression.
@@ -230,7 +231,7 @@ source image to the top-left corner. I perform the encode and
 decode, then crop the original image out.
 
 Normally, I would expect that this is pretty wasteful, and maybe
-it is. But, with the run-length encoding (described below) this
+it is. But, with run-length encoding (described below) this
 hasn't turned out to be a major problem. So, for now, I have left
 it that way.
 
@@ -242,7 +243,7 @@ away data that won't have a big effect on the source image. Haar
 coefficients represent differences between pairs of pixels. When
 these coefficients have a small magnitude, it means that the pixel
 pairs are close in value. Throwing this data away has limited effect
-on the perception of the image to the human viewer. For more on
+on the perception of the image to the human viewer. For more information on
 thresholding, try Google (or even better, chatGPT)
 
 Rounding Approximations
@@ -258,6 +259,12 @@ want to have by rounding at each successful wavelet level.
 
 I have no knowledge of research into this type of operation, so I
 can't really say how useful it is. I will be experimenting with it.
+I will be experimenting with it more, but my expectation is that,
+by reducing entropy, RUN and CACHE op codes are more likely to hit.
+Another option I will likely try is, not only to round the higher
+level values, but the bit shift the coefficients during encode (and
+shift back during decode) so that the values will encode better
+with the universal code.
 
 Universal Codes
 ---------------
@@ -265,10 +272,10 @@ Universal Codes
 Universal codes allow you to take any integer and represent it
 with a code. These codes are variable length with higher magnitude
 integers requiring more bits to encode. Currently, I am using a
-code of my own design, though, a later did some research and found
+code of my own design, though, I later did some research and found
 that Elias invented these in 1975. I guess I was a little late for
 that one. I tried to use Golomb codes, but my implementation of them
-was too slow, so I want back to my version of Elias codes which I
+was too slow, so I went back to my version of Elias codes which I
 was able to implement with a fast algorith.
 
 This is a major area that still needs some work in QOWI. The final
@@ -278,12 +285,14 @@ one of the factors that makes QOI so effective.
 
 I will probably move back to Golomb codes which have the advantage
 that they can be finely tuned based on empirical measurement of
-frequencies of the numbers you want to represent.
+frequencies of the numbers you want to represent. I just need to
+find or code my own fast implementation. You have one? Let me know in
+the comments.
 
 Run Length Coding
 -----------------
 
-QOWI uses a run-length coding to greatly compress consecutive
+QOWI uses run-length coding to greatly compress consecutive
 coefficients that have the same value. This, combined with
 universal codes, allows run lengths of any length to be
 represented by a single code
@@ -301,7 +310,7 @@ Value Coding
 ------------
 
 This is the obvious one and, often, the least efficient. QOI tries
-to avoid full value codes, which take 4 bytes in that system and
+to avoid full value codes, which take 4 bytes in that system, and
 it will generally be able to represent pixels with smaller codes.
 Given that wavelets require more bits in the best case, compared
 to spatial domain pixels, and since QOWI needs to be able to
@@ -311,17 +320,20 @@ color channel.
 Most Frequent Least Recently Used (MFLRU) Cache
 -----------------------------------------------
 
-In QOI, is simple, 6-bit hash is used to store already seen
-pixels in the cache. This has the advantage of guaranteeing small
+In QOI, a simple, 6-bit hash is used to store already seen
+pixels in the cache, with a total capcity of 62 (not 64 as you
+might expect) entries. This has the advantage of guaranteeing small
 codes and having low performance overhead, but at the expense of
 missing a lot of opportunities for caching.
 
 For wavelet coefficients, this didn't seem like a good option.
 At the very least, there is more entropy in adjacent and
 consecutive coefficients relative to pixels meaning that
-recent cached coefficients are less likely to match.
-Additionally, with the higher. For this and other reasons, I
-opted to use a larger cache.
+recent cached coefficients are less likely to match. For this
+and other reasons, I opted to use a larger cache. Given the
+Elias codes I'm currently using, the cache capacity is 65k,
+since this is the largest number that will still result in a
+code that is shorter than the longest VALUE code.
 
 Universal codes work best for geometric sequences. This means
 that smaller integer values should be more frequent and are, 
@@ -335,7 +347,7 @@ that have been observed the same number of times, the values are
 stored in order of the most recent to least recently used.
 
 I call this a Most Frequently Least Recently Used, or MFLRU, cache.
-Anecdotally, and not yet back by data, when I switched from an LRU
+Anecdotally, and not yet backed by data, when I switched from an LRU
 to the MFLRU cache, a saw a big bump in CACHE op code uses and a
 shortening of the index values stored in the codes.
 
@@ -343,7 +355,7 @@ Zig-Zag Coding
 --------------
 
 Since coefficients are naturally represented as signed integers or
-floats, you need to store an additional bit along with the uint
+floats, you need to store an additional sign bit along with the uint
 value before coding using the universal code. QOWI uses zig-zag
 codes which append the sign bit to the right side of the uint
 magnitude. This has the advantage of taking better advantage of
@@ -352,7 +364,7 @@ storing the sign separately. The tradeoff is a little more
 complexity.
 
 Zig-zag codes are used whenever the encoder needs to store a
-signed integer. Unsigned integers can coded as universal codes
+signed integer. Unsigned integers can be coded as universal codes
 directly without this extra step.
 
 Wavelet Traversal
@@ -400,7 +412,7 @@ similar, but slightly change the order of operations.
 3. Converts to zig-zag integer
 4. Converts to universal code
 
-By trying these two strategies with ever input value (as well as RUN
+By trying these two strategies with every input value (as well as RUN
 and CACHE strategies), the encoder can choose the strategy for
 a given coefficient that results in the shortest encoded
 representation.
