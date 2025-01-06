@@ -34,8 +34,6 @@ Project Status
 - Flexible implementation with configurable wavelet levels and thresholding.
 - Designed to be fun and educational for developers interested in wavelet and image compression.
 
----
-
 ## Features
 
 - **Lossless Image Compression**: Preserves all details while reducing file size.
@@ -45,24 +43,6 @@ Project Status
 - **Customizable Precision**: Rounding options for successive wavelet approximations.
 - **Caching and Optimization**: Includes MFLRU caching for better performance.
 - **Cross-platform CLI Tool**: Easily encode and decode images.
-
----
-
-## Installation
-
-### Prerequisites
-- Python 3.8 or higher
-
-### Steps
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/qowi.git
-   cd qowi
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
 
 ---
 
@@ -99,31 +79,6 @@ usage: qowi.py [-h] [-t HARD_THRESHOLD] [-s SOFT_THRESHOLD] [-w WAVELET_LEVELS] 
    ```bash
    ./qowi.py decode output.qowi decoded.png
    ```
-
----
-
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch:
-   ```bash
-   git checkout -b feature-name
-   ```
-3. Commit changes:
-   ```bash
-   git commit -m "Add new feature"
-   ```
-4. Push to your branch:
-   ```bash
-   git push origin feature-name
-   ```
-5. Open a pull request.
-
----
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 
