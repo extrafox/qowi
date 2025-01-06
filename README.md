@@ -1,6 +1,8 @@
 The Quite OK Wavelet Image (QOWI) Format
 ============
 
+![QOWI Logo](media/QOWI_cow_thumb.png "QOWI - Quite OK Wavelet Image Format")
+
 The QOWI (pronounced: COW-ee) image compression format is a reference
 implementation and a work-in-progress for a format that can scale
 from losslessly compressing images and wavelets to lossy compression
