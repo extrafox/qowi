@@ -28,38 +28,108 @@ Project Status
 * (coming soon) Optimized universal code, e.g. [Golomb](https://en.wikipedia.org/wiki/Golomb_coding) or similar code
 * (coming soon) Better performance (within limits of Python)
 
-Usage
------
+### Key Characteristics:
+- Lossless compression comparable to PNG and QOI.
+- Competitive lossy compression with file sizes and quality comparable to JPEG or WebP.
+- Flexible implementation with configurable wavelet levels and thresholding.
+- Designed to be fun and educational for developers interested in wavelet and image compression.
 
-    usage: qowi.py [-h] [-t HARD_THRESHOLD] [-s SOFT_THRESHOLD] [-w WAVELET_LEVELS] [-p WAVELET_PRECISION] {encode,decode} source destination
-    
-    Quite OK Wavelet Image (QOWI) Encoder/Decoder
-    
-    positional arguments:
-      {encode,decode}       Operation to perform: encode or decode
-      source                Path to the source file
-      destination           Path to the destination file
-    
-    optional arguments:
-      -h, --help            show this help message and exit
-      -t HARD_THRESHOLD, --hard-threshold HARD_THRESHOLD
-                            Wavelet hard threshold
-      -s SOFT_THRESHOLD, --soft-threshold SOFT_THRESHOLD
-                            Wavelet soft threshold
-      -w WAVELET_LEVELS, --wavelet-levels WAVELET_LEVELS
-                            Number of wavelet levels to encode. Defaults to 10
-      -p WAVELET_PRECISION, --wavelet-precision WAVELET_PRECISION
-                            Precision to round at each wavelet level. Defaults to 0
+---
 
-Examples
---------
+## Features
 
-    user@host:~/dev/qowi$ ./qowi.py encode media/dog_32x32.bmp dog_32x32.qowi
-    |================================================================================| 1023/1023 (100.00%)
-    Encoding completed successfully.
-    user@host:~/dev/qowi$:~/dev/qowi$ ./qowi.py decode dog_32x32.qowi dog_32x32.png
-    |================================================================================| 1023/1023 (100.00%)
-    Decoding completed successfully.
+- **Lossless Image Compression**: Preserves all details while reducing file size.
+- **Lossy Compression**: Uses configurable wavelet thresholding to optimize file size and quality.
+- **Wavelet Transformations**: Supports Haar wavelets with multiple levels.
+- **Universal Codes**: Efficient coding for variable-length integer representations.
+- **Customizable Precision**: Rounding options for successive wavelet approximations.
+- **Caching and Optimization**: Includes MFLRU caching for better performance.
+- **Cross-platform CLI Tool**: Easily encode and decode images.
+
+---
+
+## Installation
+
+### Prerequisites
+- Python 3.8 or higher
+
+### Steps
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/qowi.git
+   cd qowi
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+---
+
+## Usage
+
+### CLI Commands
+
+Run the `qowi.py` script for encoding and decoding operations.
+
+#### General Syntax:
+```bash
+usage: qowi.py [-h] [-t HARD_THRESHOLD] [-s SOFT_THRESHOLD] [-w WAVELET_LEVELS] [-p WAVELET_PRECISION] {encode,decode} source destination
+```
+
+#### Positional Arguments:
+- **{encode,decode}**: Operation to perform.
+- **source**: Path to the source file.
+- **destination**: Path to the destination file.
+
+#### Optional Arguments:
+- **-h, --help**: Show help message and exit.
+- **-t, --hard-threshold**: Wavelet hard threshold.
+- **-s, --soft-threshold**: Wavelet soft threshold.
+- **-w, --wavelet-levels**: Number of wavelet levels to encode (default: 10).
+- **-p, --wavelet-precision**: Precision to round at each wavelet level (default: 0).
+
+#### Examples:
+1. **Encoding an Image**:
+   ```bash
+   ./qowi.py encode media/dog_32x32.bmp output.qowi
+   ```
+
+2. **Decoding an Image**:
+   ```bash
+   ./qowi.py decode output.qowi decoded.png
+   ```
+
+---
+
+## Contributing
+
+1. Fork the repository.
+2. Create a feature branch:
+   ```bash
+   git checkout -b feature-name
+   ```
+3. Commit changes:
+   ```bash
+   git commit -m "Add new feature"
+   ```
+4. Push to your branch:
+   ```bash
+   git push origin feature-name
+   ```
+5. Open a pull request.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Contact
+
+For questions or suggestions, feel free to reach out to the project maintainer, me, via GitHub issues.
 
 Table of Contents
 -----------------
@@ -194,7 +264,7 @@ you really want to know how to do it, just read my code
 Lossless Haar with Multiple Levels
 ----------------------------------
 
-A alluded to it above, but, since wavelets are typically done using
+I alluded to it above, but, since wavelets are typically done using
 floating point numbers, they are expected to be lossy since you
 lose some information due to the limited size of the floating
 point number. With each wavelet level you encode, you need to add
@@ -255,14 +325,14 @@ higher levels. In the case of QOWI, I want to have the option
 of performing a lossless encoding, so I need to keep all of the
 precision. This is helped by only using integers to store the
 coefficients. However, we can dial in the level of precision we
-want to have by rounding at each successful wavelet level.
+want to have by rounding at each successive wavelet level.
 
 I have no knowledge of research into this type of operation, so I
-can't really say how useful it is. I will be experimenting with it.
-I will be experimenting with it more, but my expectation is that,
+can't really say how useful it is. I will be experimenting with it 
+more, but my expectation is that,
 by reducing entropy, RUN and CACHE op codes are more likely to hit.
 Another option I will likely try is, not only to round the higher
-level values, but the bit shift the coefficients during encode (and
+level values, but to bit shift the coefficients during encode (and
 shift back during decode) so that the values will encode better
 with the universal code.
 
@@ -276,7 +346,7 @@ code of my own design, though, I later did some research and found
 that Elias invented these in 1975. I guess I was a little late for
 that one. I tried to use Golomb codes, but my implementation of them
 was too slow, so I went back to my version of Elias codes which I
-was able to implement with a fast algorith.
+was able to implement with a fast algorithm.
 
 This is a major area that still needs some work in QOWI. The final
 compression amount is greatly affected by choice of universal code.
@@ -321,7 +391,7 @@ Most Frequent Least Recently Used (MFLRU) Cache
 -----------------------------------------------
 
 In QOI, a simple, 6-bit hash is used to store already seen
-pixels in the cache, with a total capcity of 62 (not 64 as you
+pixels in the cache, with a total capacity of 62 (not 64 as you
 might expect) entries. This has the advantage of guaranteeing small
 codes and having low performance overhead, but at the expense of
 missing a lot of opportunities for caching.
