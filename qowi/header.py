@@ -21,7 +21,7 @@ class Header:
         buffer = BitArray()
         buffer.append(Bits(uint=self.width, length=WIDTH_NUM_BITS))
         buffer.append(Bits(uint=self.height, length=HEIGHT_NUM_BITS))
-        buffer.append(Bits(uint=self.color_depth, length=COLOR_DEPTH_BITS))
+        buffer.append(Bits(uint=self.color_depth - 1, length=COLOR_DEPTH_BITS))
         buffer.append(Bits(uint=self.cache_size, length=CACHE_NUM_BITS))
         buffer.append(Bits(uint=self.wavelet_levels, length=WAVELET_LEVELS_BITS))
         buffer.append(Bits(uint=self.wavelet_precision_digits, length=WAVELET_PRECISION_DIGITS_BITS))
@@ -30,7 +30,7 @@ class Header:
     def read(self, bitstream: BitStream):
         self.width = bitstream.read(WIDTH_NUM_BITS).uint
         self.height = bitstream.read(HEIGHT_NUM_BITS).uint
-        self.color_depth = bitstream.read(COLOR_DEPTH_BITS).uint
+        self.color_depth = bitstream.read(COLOR_DEPTH_BITS).uint + 1
         self.cache_size = bitstream.read(CACHE_NUM_BITS).uint
         self.wavelet_levels = bitstream.read(WAVELET_LEVELS_BITS).uint
         self.wavelet_precision_digits = bitstream.read(WAVELET_PRECISION_DIGITS_BITS).uint
