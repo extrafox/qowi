@@ -39,6 +39,7 @@ class QOWIDecoder:
         if self._bitstream is None:
             raise RuntimeError("Destination must be prepared to encode")
 
+        self._bitstream.pos = 0
         self._header.read(self._bitstream)
         self._wavelet = Wavelet(self._header.width, self._header.height, self._header.color_depth, self._header.wavelet_levels, self._header.wavelet_precision_digits)
 
