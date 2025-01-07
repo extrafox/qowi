@@ -4,6 +4,7 @@ from bitstring import BitArray, Bits, BitStream
 from qowi.mflru_cache import MFLRUCache
 
 ZERO_INTEGER = (0, 0, 0)
+ZERO_INTEGER_FOUR = (0, 0, 0, 255)
 OP_CODE_RUN = Bits('0b00')
 OP_CODE_CACHE = Bits('0b01')
 OP_CODE_DELTA = Bits('0b10')
@@ -51,6 +52,7 @@ class IntegerEncoder:
         self._run_length = 0
         self._last_integer = ZERO_INTEGER
         self._cache = MFLRUCache(cache_size)
+        self._cache.observe(ZERO_INTEGER_FOUR)
         self._cache.observe(ZERO_INTEGER)
         self.stats = []
         self._finished = False
