@@ -1,9 +1,7 @@
 import math
 import numpy as np
 from numpy import ndarray
-
 from qowi import integers
-
 
 def haar_encode(a, b, c, d):
     ll = a + b + c + d

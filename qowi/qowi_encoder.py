@@ -1,11 +1,7 @@
-import math
-
 import numpy as np
 import qowi.entropy as entropy
 import time
 from bitstring import Bits, BitStream
-
-import qowi.header
 from qowi import integers
 from qowi.integer_encoder import IntegerEncoder
 from skimage import io
@@ -27,7 +23,7 @@ MIN_WAVELET_PRECISION_DIGITS = 0
 MAX_HARD_THRESHOLD = 510
 MAX_SOFT_THRESHOLD = 510
 MAX_WAVELET_LEVELS = 15
-MAX_WAVELET_PRECISION_DIGITS = 15
+MAX_WAVELET_PRECISION_DIGITS = 255
 
 class QOWIEncoder:
     def __init__(self, hard_threshold=DEFAULT_HARD_THRESHOLD,

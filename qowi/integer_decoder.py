@@ -1,7 +1,5 @@
 import qowi.entropy as entropy
-import numpy as np
 from bitstring import Bits, BitStream
-
 from qowi import integers
 from qowi.mflru_cache import MFLRUCache
 
