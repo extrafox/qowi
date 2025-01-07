@@ -22,21 +22,23 @@ def haar_decode(ll, hl, lh, hh):
     return a, b, c, d
 
 class Wavelet:
-    def __init__(self, width=0, height=0, wavelet_levels=10, precision=0):
+    def __init__(self, width=0, height=0, color_depth=0, wavelet_levels=10, precision_digits=0):
         self.width = 0
         self.height = 0
+        self.color_depth = 0
         self.length = 0
         self.num_levels = 0
         self.wavelet_levels = wavelet_levels
-        self.precision = precision
+        self.precision_binary_digits = precision_digits
         self.wavelet = None
         self.carry_over = None
 
-        self._initialize_from_shape(width, height)
+        self._initialize_from_shape(width, height, color_depth)
 
-    def _initialize_from_shape(self, width, height):
+    def _initialize_from_shape(self, width, height, color_depth):
         self.width = width
         self.height = height
+        self.color_depth = color_depth
         if width == 0 and height == 0:
             self.num_levels = 0
             self.level = 0
@@ -44,13 +46,13 @@ class Wavelet:
             self.num_levels = max(math.ceil(math.log2(width)), math.ceil(math.log2(height)))
             self.length = 2 ** self.num_levels
 
-        self.wavelet = np.zeros((self.length, self.length, 3), dtype=np.int64)
+        self.wavelet = np.zeros((self.length, self.length, self.color_depth), dtype=np.int64)
 
     def _gen_wavelet(self):
         lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
         for dest_level in reversed(range(lowest_order_level, self.num_levels)):
             dest_length = 2 ** dest_level
-            dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, 3), dtype=np.int64)
+            dest_wavelets = np.zeros((2 * dest_length, 2 * dest_length, self.color_depth), dtype=np.int64)
 
             for i in range(dest_length):
                 for j in range(dest_length):
@@ -59,11 +61,16 @@ class Wavelet:
                     c = self.wavelet[2 * i + 1, 2 * j]
                     d = self.wavelet[2 * i + 1, 2 * j + 1]
 
-                    ll, hl, lh, hh = haar_encode(a, b, c, d)
+                    if self.precision_binary_digits > 0:
+                        scaling_factor_digits = (self.num_levels - dest_level) * 2
+                        rescale_digits = scaling_factor_digits - self.precision_binary_digits
+                        if rescale_digits > 0:
+                            a = integers.rescale_ndarray(a, -rescale_digits) # shift right
+                            b = integers.rescale_ndarray(b, -rescale_digits)  # shift right
+                            c = integers.rescale_ndarray(c, -rescale_digits)  # shift right
+                            d = integers.rescale_ndarray(d, -rescale_digits)  # shift right
 
-                    if self.precision > 0:
-                        scaling_factor = (self.num_levels - dest_level) * 4
-                        ll = integers.round_scaled_integer_ndarray(ll, scaling_factor, self.precision)
+                    ll, hl, lh, hh = haar_encode(a, b, c, d)
 
                     dest_wavelets[i, j] = ll
                     dest_wavelets[i, dest_length + j] = hl
@@ -74,7 +81,7 @@ class Wavelet:
             self.wavelet[:dest_wavelets.shape[1], :dest_wavelets.shape[1]] = dest_wavelets
 
     def prepare_from_image(self, image: ndarray):
-        self._initialize_from_shape(image.shape[0], image.shape[1])
+        self._initialize_from_shape(image.shape[0], image.shape[1], image.shape[2])
 
         # fill the empty area with zeros and copy source image to top left of wavelet
         self.wavelet[:self.width, :self.height] = image
@@ -89,7 +96,7 @@ class Wavelet:
         lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
         for source_level in range(lowest_order_level, self.num_levels):
             source_length = 2 ** source_level
-            dest_wavelets = np.zeros((2 * source_length, 2 * source_length, 3), dtype=np.int64)
+            dest_wavelets = np.zeros((2 * source_length, 2 * source_length, self.color_depth), dtype=np.int64)
 
             for i in range(source_length):
                 for j in range(source_length):
@@ -99,6 +106,15 @@ class Wavelet:
                     hh = ret_wavelet[source_length + i, source_length + j]
 
                     a, b, c, d = haar_decode(ll, hl, lh, hh)
+
+                    if self.precision_binary_digits > 0:
+                        scaling_factor_digits = (self.num_levels - source_level) * 2
+                        rescale_digits = scaling_factor_digits - self.precision_binary_digits
+                        if rescale_digits > 0:
+                            a = integers.rescale_ndarray(a, rescale_digits) # shift left
+                            b = integers.rescale_ndarray(b, rescale_digits) # shift left
+                            c = integers.rescale_ndarray(c, rescale_digits) # shift left
+                            d = integers.rescale_ndarray(d, rescale_digits) # shift left
 
                     dest_wavelets[2 * i, 2 * j] = a
                     dest_wavelets[2 * i, 2 * j + 1] = b

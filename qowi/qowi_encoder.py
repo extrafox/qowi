@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import qowi.entropy as entropy
 import time
@@ -15,33 +17,35 @@ DEFAULT_CACHE_SIZE = 65533
 DEFAULT_HARD_THRESHOLD = -1
 DEFAULT_SOFT_THRESHOLD = -1
 DEFAULT_WAVELET_LEVELS = 2
-DEFAULT_WAVELET_PRECISION = 0
+DEFAULT_WAVELET_PRECISION_DIGITS = 0
 
 MIN_HARD_THRESHOLD = -1
 MIN_SOFT_THRESHOLD = -1
 MIN_WAVELET_LEVELS = 0
-MIN_WAVELET_PRECISION = 0
+MIN_WAVELET_PRECISION_DIGITS = 0
 
 MAX_HARD_THRESHOLD = 510
 MAX_SOFT_THRESHOLD = 510
 MAX_WAVELET_LEVELS = 15
+MAX_WAVELET_PRECISION_DIGITS = 15
 
 class QOWIEncoder:
     def __init__(self, hard_threshold=DEFAULT_HARD_THRESHOLD,
                  soft_threshold=DEFAULT_SOFT_THRESHOLD,
                  wavelet_encode_levels=DEFAULT_WAVELET_LEVELS,
-                 wavelet_precision=DEFAULT_WAVELET_PRECISION, ):
+                 wavelet_precision_digits=DEFAULT_WAVELET_PRECISION_DIGITS, ):
 
         self._hard_threshold = max(MIN_HARD_THRESHOLD, min(hard_threshold, MAX_HARD_THRESHOLD))
         self._soft_threshold = max(MIN_SOFT_THRESHOLD, min(soft_threshold, MAX_SOFT_THRESHOLD))
         self._wavelet_levels = max(MIN_WAVELET_LEVELS, min(wavelet_encode_levels, MAX_WAVELET_LEVELS))
-        self._wavelet_precision = max(MIN_WAVELET_PRECISION, wavelet_precision)
+        self._wavelet_precision_digits = max(MIN_WAVELET_PRECISION_DIGITS, min(wavelet_precision_digits, MAX_WAVELET_PRECISION_DIGITS))
 
         self._header = Header()
         self._header.cache_size = DEFAULT_CACHE_SIZE
         self._header.wavelet_levels = self._wavelet_levels
+        self._header.wavelet_precision_digits = self._wavelet_precision_digits
 
-        self._wavelet = Wavelet(wavelet_levels=self._wavelet_levels, precision=self._wavelet_precision)
+        self._wavelet = Wavelet(wavelet_levels=self._wavelet_levels, precision_digits=self._wavelet_precision_digits)
         self._bitstream = None
 
         self._finished = False
@@ -52,6 +56,7 @@ class QOWIEncoder:
         self._wavelet.prepare_from_image(array)
         self._header.width = self._wavelet.width
         self._header.height = self._wavelet.height
+        self._header.color_depth = self._wavelet.color_depth
 
     def from_file(self, filename):
         self.from_array(io.imread(filename))
@@ -78,33 +83,25 @@ class QOWIEncoder:
         elif self._soft_threshold > -1:
             self._wavelet.apply_soft_threshold(self._soft_threshold)
 
-        buffer = BitStream()
+        self._bitstream.append(self._header.header_bits())
 
         # encode the top value of the wavelet to the buffer
         root_integer = self._wavelet.wavelet[0, 0]
         root_zigzag = integers.int_tuple_to_zigzag_tuple(root_integer)
-        buffer.append(entropy.simple_encode_tuple(root_zigzag))
+        self._bitstream.append(entropy.simple_encode_tuple(root_zigzag))
 
         # encode the coefficients to the buffer
-        self._write_coefficients(buffer)
+        self._write_coefficients()
 
-        top_of_header_bits = self._header.top_of_header()
-        total_bits = top_of_header_bits.len + qowi.header.NUM_PARTIAL_BITS + buffer.len
-        self._header.num_partial = 8 - total_bits % 8
-        partial_header_bits = self._header.num_partial_header()
-
-        self._bitstream.append(top_of_header_bits)
-        self._bitstream.append(partial_header_bits)
-        self._bitstream.append(buffer)
-        self._bitstream.append('0b' + '0' * self._header.num_partial)
+        self._bitstream.append('0b' + '0' * (8 - self._bitstream.len % 8))
 
         end_time = time.time()
         self.encode_duration = end_time - start_time
         self._finished = True
 
-    def _write_coefficients(self, buffer: BitStream):
+    def _write_coefficients(self):
         stack = [(0, 'HH', 0, 0), (0, 'LH', 0, 0), (0, 'HL', 0, 0)]
-        integer_encoder = IntegerEncoder(buffer, DEFAULT_CACHE_SIZE)
+        integer_encoder = IntegerEncoder(self._bitstream, DEFAULT_CACHE_SIZE)
 
         number_of_tokens = self._wavelet.length ** 2 - 1
         counter = 1

@@ -35,48 +35,70 @@ def subtract_tuples(first: tuple, second: tuple) -> tuple:
     return tuple(int(a) - int(b) for a, b in zip(first, second))
 
 
-def round_scaled_integer(value, scale, round_to_fraction):
+def rescale(value: int, rescale_digits: int) -> int:
     """
-    Round a scaled integer to a specified fraction of its scale.
+    Rescales an integer that represents a scaled float value by applying a bit shift.
+    A positive rescale_digits value shifts to the left (increasing scale), while a
+    negative rescale_digits value shifts to the right (reducing scale).
 
-    Args:
-        value (int): The integer to be rounded.
-        scale (int): The scale factor (e.g., 4, 16, 64).
-        round_to_fraction (float): The fraction of the scale to round to (e.g., 0.25 for 1/4th of scale).
+    Parameters:
+    value (int): The input integer value to be rescaled.
+    rescale_digits (int): The number of bits to shift. Positive for left shift,
+                          negative for right shift.
 
     Returns:
-        int: The rounded integer value at the same scale as the input.
+    int: The rescaled integer value.
     """
-    # Convert the rounding fraction to the scaled integer domain
-    rounding_increment = int(round_to_fraction * scale)
-
-    if rounding_increment == 0:
+    if rescale_digits == 0:
         return value
 
-    # Perform rounding in the scaled integer domain
-    rounded_value = ((value + rounding_increment // 2) // rounding_increment) * rounding_increment
+    if rescale_digits > 0:
+        # Apply the left bit shift for positive rescale_digits
+        return value << rescale_digits
 
-    return rounded_value
+    else:
+        shift_amount = 1 << abs(rescale_digits)  # Equivalent to 2 ** abs(rescale_digits)
+        remainder = value & (shift_amount - 1)  # Extract the bits being discarded
 
-def round_scaled_integer_ndarray(values, scale, round_to_fraction):
+        # Perform rounding: Add half the shift amount to the value if rounding up
+        if value >= 0:
+            value += shift_amount // 2
+        else:
+            value -= shift_amount // 2
+
+        # Apply the right bit shift
+        return value >> abs(rescale_digits)
+
+def rescale_ndarray(values: np.ndarray, rescale_digits: int) -> np.ndarray:
     """
-    Round a scaled ndarray of integers to a specified fraction of its scale.
+    Rescales an ndarray of integers that represent scaled float values by applying a bit shift.
+    A positive rescale_digits value shifts to the left (increasing scale), while a
+    negative rescale_digits value shifts to the right (reducing scale).
 
-    Args:
-        values (ndarray): The array of integers to be rounded.
-        scale (int): The scale factor (e.g., 4, 16, 64).
-        round_to_fraction (float): The fraction of the scale to round to (e.g., 0.25 for 1/4th of scale).
+    Parameters:
+    values (np.ndarray): The input ndarray of integer values to be rescaled.
+    rescale_digits (int): The number of bits to shift. Positive for left shift,
+                          negative for right shift.
 
     Returns:
-        ndarray: The rounded array of integers at the same scale as the input.
+    np.ndarray: The rescaled ndarray.
     """
-    # Convert the rounding fraction to the scaled integer domain
-    rounding_increment = int(round_to_fraction * scale)
-
-    if rounding_increment == 0:
+    if rescale_digits == 0:
         return values
 
-    # Perform rounding in the scaled integer domain
-    rounded_values = ((values + rounding_increment // 2) // rounding_increment) * rounding_increment
+    if rescale_digits > 0:
+        # Apply the left bit shift for positive rescale_digits
+        return values << rescale_digits
 
-    return rounded_values
+    else:
+        shift_amount = 1 << abs(rescale_digits)  # Equivalent to 2 ** abs(rescale_digits)
+        remainder = values & (shift_amount - 1)  # Extract the bits being discarded
+
+        # Perform rounding: Add half the shift amount to the values if rounding up
+        adjustment = shift_amount // 2
+        values = np.where(values >= 0, values + adjustment, values - adjustment)
+
+        # Apply the right bit shift
+        return values >> abs(rescale_digits)
+
+

@@ -17,7 +17,7 @@ PRINT_STATS = True
 print("Processing image: {}".format(TEST_IMAGE_PATH))
 
 source_image = io.imread(TEST_IMAGE_PATH)
-original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
+original_image_size = source_image.shape[0] * source_image.shape[1] * source_image.shape[2] * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
 print("Encoding ...")

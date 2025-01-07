@@ -1,18 +1,18 @@
 import pandas as pd
 import utils.analysis as analysis
 from bitstring import BitStream
-from qowi import QOWIDecoder
-from qowi import QOWIEncoder
+from qowi.qowi_decoder import QOWIDecoder
+from qowi.qowi_encoder import QOWIEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 
-TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
-# TEST_IMAGE_PATH = "media/mango_32x32.jpg"
+# TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
+TEST_IMAGE_PATH = "media/mango_32x32.jpg"
 PRINT_STATS = True
 HARD_THRESHOLD = 0
 SOFT_THRESHOLD = -1
 WAVELET_LEVELS = 10
-WAVELET_PRECISION = 0
+WAVELET_PRECISION_DIGITS = 4
 
 ###
 ### Prepare image and intermediates
@@ -21,16 +21,15 @@ WAVELET_PRECISION = 0
 print("Processing image: {}".format(TEST_IMAGE_PATH))
 
 source_image = io.imread(TEST_IMAGE_PATH)
-original_image_size = source_image.shape[0] * source_image.shape[1] * 3 * 8
+original_image_size = source_image.shape[0] * source_image.shape[1] * source_image.shape[2] * 8
 print("Original image shape {} and size (bits): {}".format(source_image.shape, original_image_size))
 
-print("Encoding with wavelet levels {}, wavelet precision {}, soft threshold {} and hard threshold {}...".format(WAVELET_LEVELS, WAVELET_PRECISION, SOFT_THRESHOLD, HARD_THRESHOLD))
+print("Encoding with wavelet levels {}, wavelet precision {}, soft threshold {} and hard threshold {}...".format(WAVELET_LEVELS, WAVELET_PRECISION_DIGITS, SOFT_THRESHOLD, HARD_THRESHOLD))
 encoded_bitstream = BitStream()
-e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD, WAVELET_LEVELS, WAVELET_PRECISION)
+e = QOWIEncoder(HARD_THRESHOLD, SOFT_THRESHOLD, WAVELET_LEVELS, WAVELET_PRECISION_DIGITS)
 e.from_array(source_image)
 e.to_bitstream(encoded_bitstream)
 e.encode()
-print()
 print("Finished encoding in {:.2f} seconds".format(e.encode_duration))
 
 encoded_size = len(encoded_bitstream)
@@ -42,7 +41,6 @@ d = QOWIDecoder()
 d.from_bitstream(encoded_bitstream)
 d.decode()
 decoded_image = d.as_array()
-print()
 print("Finished decoding in {:.2f} seconds".format(d.decode_duration))
 
 print("Computing signal to noise ratio (SNR)...")

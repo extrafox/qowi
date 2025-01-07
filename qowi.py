@@ -11,12 +11,12 @@ from qowi.qowi_decoder import QOWIDecoder
 DEFAULT_HARD_THRESHOLD = -1
 DEFAULT_SOFT_THRESHOLD = -1
 DEFAULT_WAVELET_LEVELS = 10
-DEFAULT_WAVELET_PRECISION = 0
+DEFAULT_WAVELET_PRECISION_DIGITS = 0
 
-def encode(source_path, dest_path, hard_threshold, soft_threshold, wavelet_levels, wavelet_precision):
+def encode(source_path, dest_path, hard_threshold, soft_threshold, wavelet_levels, wavelet_precision_digits):
     source_image = io.imread(source_path)
 
-    encoder = QOWIEncoder(hard_threshold, soft_threshold, wavelet_levels, wavelet_precision)
+    encoder = QOWIEncoder(hard_threshold, soft_threshold, wavelet_levels, wavelet_precision_digits)
     encoder.from_array(source_image)
     bitstream = BitStream()
     encoder.to_bitstream(bitstream)
@@ -50,7 +50,7 @@ def main():
     parser.add_argument("-t", "--hard-threshold", type=int, default=DEFAULT_HARD_THRESHOLD, help="Wavelet hard threshold")
     parser.add_argument("-s", "--soft-threshold", type=int, default=DEFAULT_SOFT_THRESHOLD, help="Wavelet soft threshold")
     parser.add_argument("-w", "--wavelet-levels", type=int, default=DEFAULT_WAVELET_LEVELS, help="Number of wavelet levels to encode. Defaults to {}".format(DEFAULT_WAVELET_LEVELS))
-    parser.add_argument("-p", "--wavelet-precision", type=int, default=DEFAULT_WAVELET_PRECISION, help="Precision to round at each wavelet level. Defaults to {}".format(DEFAULT_WAVELET_PRECISION))
+    parser.add_argument("-p", "--wavelet-precision", type=int, default=DEFAULT_WAVELET_PRECISION_DIGITS, help="Precision in binary digits to round at each wavelet level. Defaults to {}".format(DEFAULT_WAVELET_PRECISION_DIGITS))
 
     args = parser.parse_args()
 
