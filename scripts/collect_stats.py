@@ -6,14 +6,14 @@ from qowi.qowi_encoder import QOWIEncoder
 from utils.visualization import display_images_side_by_side
 from skimage import io
 
-TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
 # TEST_IMAGE_PATH = "/home/ctaylor/dev/qowi/media/QOWI_cow.png"
-# TEST_IMAGE_PATH = "media/mango_32x32.jpg"
+# TEST_IMAGE_PATH = "/home/ctaylor/media/imagenet-mini/train/n01443537/n01443537_10408.JPEG"
+TEST_IMAGE_PATH = "media/mango_32x32.jpg"
 PRINT_STATS = True
 HARD_THRESHOLD = 0
-SOFT_THRESHOLD = -1
+SOFT_THRESHOLD = 1
 WAVELET_LEVELS = 10
-WAVELET_PRECISION_DIGITS = 24
+WAVELET_PRECISION_DIGITS = 0
 
 ###
 ### Prepare image and intermediates

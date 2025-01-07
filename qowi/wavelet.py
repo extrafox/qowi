@@ -124,14 +124,57 @@ class Wavelet:
         return ret_wavelet[:self.width, :self.height].astype(np.uint8)
 
     def apply_hard_threshold(self, threshold: float):
-        root_element = self.wavelet[0, 0]
-        self.wavelet[np.abs(self.wavelet) < threshold] = 0
-        self.wavelet[0, 0] = root_element
+        if threshold == 0.0:
+            return
+
+        lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
+        this_threshold = None
+        for this_level in range(lowest_order_level, self.num_levels):
+            this_length = 2 ** this_level
+
+            # rescale the threshold in order to perform the calculation in the int domain
+            scaling_factor_digits = (self.num_levels - this_level) * 2
+            if self.precision_binary_digits > 0:
+                rescale_digits = scaling_factor_digits - self.precision_binary_digits
+                if rescale_digits > 0:
+                    this_threshold = int(round(threshold * 2 ** rescale_digits))
+            else:
+                this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
+
+            for i in range(this_length):
+                for j in range(this_length):
+                    hl = self.wavelet[i, this_length + j]
+                    lh = self.wavelet[this_length + i, j]
+                    hh = self.wavelet[this_length + i, this_length + j]
+
+                    hl[np.abs(hl) < this_threshold] = 0
+                    lh[np.abs(lh) < this_threshold] = 0
+                    hh[np.abs(hh) < this_threshold] = 0
 
     def apply_soft_threshold(self, threshold: float):
-        root_element = self.wavelet[0, 0]
-        self.wavelet = np.where(np.abs(self.wavelet) < threshold,
-                                np.sign(self.wavelet) * np.maximum(np.abs(self.wavelet) - threshold, 0),
-                                self.wavelet)
-        self.wavelet[0, 0] = root_element
+        if threshold == 0.0:
+            return
 
+        lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
+        this_threshold = None
+        for this_level in range(lowest_order_level, self.num_levels):
+            this_length = 2 ** this_level
+
+            # rescale the threshold in order to perform the calculation in the int domain
+            scaling_factor_digits = (self.num_levels - this_level) * 2
+            if self.precision_binary_digits > 0:
+                rescale_digits = scaling_factor_digits - self.precision_binary_digits
+                if rescale_digits > 0:
+                    this_threshold = int(round(threshold * 2 ** rescale_digits))
+            else:
+                this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
+
+            for i in range(this_length):
+                for j in range(this_length):
+                    hl = self.wavelet[i, this_length + j]
+                    lh = self.wavelet[this_length + i, j]
+                    hh = self.wavelet[this_length + i, this_length + j]
+
+                    hl[:] = np.sign(hl) * np.maximum(np.abs(hl) - this_threshold, 0)
+                    lh[:] = np.sign(lh) * np.maximum(np.abs(lh) - this_threshold, 0)
+                    hh[:] = np.sign(hh) * np.maximum(np.abs(hh) - this_threshold, 0)

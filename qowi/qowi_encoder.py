@@ -74,7 +74,7 @@ class QOWIEncoder:
         if self._wavelet is None:
             raise RuntimeError("Source must be prepared to encode")
 
-        if self._hard_threshold > -1:
+        if self._hard_threshold > 0:
             self._wavelet.apply_hard_threshold(self._hard_threshold)
         elif self._soft_threshold > -1:
             self._wavelet.apply_soft_threshold(self._soft_threshold)
