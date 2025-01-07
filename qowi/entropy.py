@@ -46,7 +46,7 @@ def simple_encode_tuple(uint_tuple) -> Bits:
     deltas = np.array(uint_tuple) - offsets
 
     leading_bits = [Bits(bin='1' * (o - 1) + '0') for o in orders]
-    data_bits = [Bits(uint=d, length=o) for d, o in zip(deltas, orders)]
+    data_bits = [Bits(uint=d, length=int(o)) for d, o in zip(deltas, orders)]
 
     ret = BitArray()
     for lb, db in zip(leading_bits, data_bits):
