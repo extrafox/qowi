@@ -124,7 +124,7 @@ class Wavelet:
         return ret_wavelet[:self.width, :self.height].astype(np.uint8)
 
     def apply_hard_threshold(self, threshold: float):
-        if threshold == 0.0:
+        if threshold == 0:
             return
 
         lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
@@ -134,12 +134,11 @@ class Wavelet:
 
             # rescale the threshold in order to perform the calculation in the int domain
             scaling_factor_digits = (self.num_levels - this_level) * 2
+            this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
             if self.precision_binary_digits > 0:
                 rescale_digits = scaling_factor_digits - self.precision_binary_digits
                 if rescale_digits > 0:
                     this_threshold = int(round(threshold * 2 ** rescale_digits))
-            else:
-                this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
 
             for i in range(this_length):
                 for j in range(this_length):
@@ -152,7 +151,7 @@ class Wavelet:
                     hh[np.abs(hh) < this_threshold] = 0
 
     def apply_soft_threshold(self, threshold: float):
-        if threshold == 0.0:
+        if threshold == -1:
             return
 
         lowest_order_level = max(self.num_levels - self.wavelet_levels, 0)
@@ -162,12 +161,11 @@ class Wavelet:
 
             # rescale the threshold in order to perform the calculation in the int domain
             scaling_factor_digits = (self.num_levels - this_level) * 2
+            this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
             if self.precision_binary_digits > 0:
                 rescale_digits = scaling_factor_digits - self.precision_binary_digits
                 if rescale_digits > 0:
                     this_threshold = int(round(threshold * 2 ** rescale_digits))
-            else:
-                this_threshold = int(round(threshold * 2 ** scaling_factor_digits))
 
             for i in range(this_length):
                 for j in range(this_length):
