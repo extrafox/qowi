@@ -16,25 +16,24 @@ def haar_loss(encoded_output, reconstructed_output, input_data, target_haar_coef
     recon_loss = nn.MSELoss()(reconstructed_output, input_data)
 
     # Weighted combined loss
-    total_loss = 0.3 * forward_loss + 0.7 * recon_loss
+    total_loss = 0.2 * forward_loss + 0.8 * recon_loss
     return total_loss
 
 class SimpleHaarNet(nn.Module):
     def __init__(self):
         super(SimpleHaarNet, self).__init__()
-        self.fc1 = nn.Linear(4, 16)  # Input size is 4 spatial values
-        self.bn1 = nn.BatchNorm1d(16)
+        self.fc1 = nn.Linear(4, 16)  # Input size is 4 spatial values, reduced layer size
         self.fc2 = nn.Linear(16, 16)
-        self.bn2 = nn.BatchNorm1d(16)
         self.fc3 = nn.Linear(16, 4)  # Output size is 4 Haar coefficients
 
+        # Weight initialization
+        nn.init.xavier_uniform_(self.fc1.weight)
+        nn.init.xavier_uniform_(self.fc2.weight)
+        nn.init.xavier_uniform_(self.fc3.weight)
+
     def forward(self, x):
-        if x.dim() == 2 and x.size(0) == 1:  # Single sample
-            x = torch.relu(self.fc1(x))
-            x = torch.relu(self.fc2(x))
-        else:
-            x = torch.relu(self.bn1(self.fc1(x)))
-            x = torch.relu(self.bn2(self.fc2(x)))
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
         x = self.fc3(x)
         return x
 
@@ -60,18 +59,18 @@ def train_network():
     decode_net = SimpleHaarNet()  # Neural network for inverse Haar decoding
 
     # Optimizers for both networks
-    optimizer_encode = optim.Adam(encode_net.parameters(), lr=0.0005)
-    optimizer_decode = optim.Adam(decode_net.parameters(), lr=0.0005)
+    optimizer_encode = optim.Adam(encode_net.parameters(), lr=0.001)
+    optimizer_decode = optim.Adam(decode_net.parameters(), lr=0.001)
 
     # Learning rate schedulers
     scheduler_encode = optim.lr_scheduler.ReduceLROnPlateau(optimizer_encode, patience=10)
     scheduler_decode = optim.lr_scheduler.ReduceLROnPlateau(optimizer_decode, patience=10)
 
     for epoch in range(1000):  # Number of training epochs
-        # Generate a new random dataset for each epoch
+        # Generate a new random dataset for each epoch with larger range
         input_data = torch.tensor([
             [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
-            for _ in range(1000)
+            for _ in range(2000)
         ], dtype=torch.float32)  # Batch of spatial domain values
 
         # Compute target Haar coefficients
@@ -83,12 +82,15 @@ def train_network():
 
         # Forward pass through the decode network
         reconstructed_output = decode_net(encoded_output)
+        reconstructed_output = torch.clamp(reconstructed_output, 0, 255)  # Clamp to valid pixel range
 
         # Compute loss
         loss = haar_loss(encoded_output, reconstructed_output, input_data, target_haar_coeffs)
 
         # Backpropagation and optimization for both networks
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(encode_net.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(decode_net.parameters(), max_norm=1.0)
         optimizer_encode.step()
         optimizer_decode.step()
 
