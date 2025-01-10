@@ -66,6 +66,13 @@ def train_network():
     scheduler_encode = optim.lr_scheduler.ReduceLROnPlateau(optimizer_encode, patience=10)
     scheduler_decode = optim.lr_scheduler.ReduceLROnPlateau(optimizer_decode, patience=10)
 
+    # Validation data
+    validation_data = torch.tensor([
+        [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
+        for _ in range(500)
+    ], dtype=torch.float32)
+    validation_target_coeffs = compute_target_haar_coeffs(validation_data)
+
     for epoch in range(1000):  # Number of training epochs
         # Generate a new random dataset for each epoch with larger range
         input_data = torch.tensor([
@@ -99,7 +106,14 @@ def train_network():
         scheduler_decode.step(loss)
 
         if epoch % 100 == 0:
-            print(f"Epoch {epoch}, Loss: {loss.item()}")
+            # Validation step
+            with torch.no_grad():
+                val_encoded_output = encode_net(validation_data)
+                val_reconstructed_output = decode_net(val_encoded_output)
+                val_reconstructed_output = torch.clamp(val_reconstructed_output, 0, 255)
+                val_loss = haar_loss(val_encoded_output, val_reconstructed_output, validation_data, validation_target_coeffs)
+
+            print(f"Epoch {epoch}, Training Loss: {loss.item()}, Validation Loss: {val_loss.item()}")
 
     return encode_net, decode_net
 
