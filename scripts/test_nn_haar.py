@@ -59,8 +59,8 @@ def train_network():
     decode_net = SimpleHaarNet()  # Neural network for inverse Haar decoding
 
     # Optimizers for both networks
-    optimizer_encode = optim.Adam(encode_net.parameters(), lr=0.001)
-    optimizer_decode = optim.Adam(decode_net.parameters(), lr=0.001)
+    optimizer_encode = optim.Adam(encode_net.parameters(), lr=0.0005)
+    optimizer_decode = optim.Adam(decode_net.parameters(), lr=0.0005)
 
     # Learning rate schedulers
     scheduler_encode = optim.lr_scheduler.ReduceLROnPlateau(optimizer_encode, patience=10)
