@@ -77,7 +77,7 @@ def train_network():
         # Generate a new random dataset for each epoch with larger range
         input_data = torch.tensor([
             [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
-            for _ in range(2000)
+            for _ in range(5000)
         ], dtype=torch.float32)  # Batch of spatial domain values
 
         # Compute target Haar coefficients
