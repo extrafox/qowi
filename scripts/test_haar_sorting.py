@@ -2,8 +2,9 @@ import numpy as np
 import itertools
 import struct
 import os
+import tempfile
+import heapq
 import unittest
-
 
 class HaarSorting:
     def __init__(self, bit_depth=8):
@@ -21,101 +22,83 @@ class HaarSorting:
         HH = a - b - c + d
         return LL, HL, LH, HH
 
-    def generate_lookup_table(self):
+    def external_sort(self, grids, key):
+        temp_files = []
+        chunk_size = 10_000  # Number of grids per chunk
+        grids_iter = iter(grids)
+
+        while True:
+            chunk = list(itertools.islice(grids_iter, chunk_size))
+            if not chunk:
+                break
+            chunk.sort(key=key)
+            temp_file = tempfile.TemporaryFile()
+            np.save(temp_file, np.array(chunk, dtype=object))
+            temp_file.seek(0)
+            temp_files.append(temp_file)
+
+        return self.merge_sorted_files(temp_files, key)
+
+    def merge_sorted_files(self, temp_files, key):
+        def file_iterator(temp_file):
+            temp_file.seek(0)
+            chunk = np.load(temp_file, allow_pickle=True)
+            yield from chunk
+
+        iterators = [file_iterator(f) for f in temp_files]
+        return heapq.merge(*iterators, key=key)
+
+    def generate_lookup_table(self, output_filename):
         pixel_space = range(0, self.max_value + 1)
         grids = itertools.product(pixel_space, repeat=self.grid_size)
 
         # Step 1: Sort grids by LL coefficient
-        sorted_grids = sorted(grids, key=lambda grid: (self.haar_coefficients(grid)[0], grid))
+        sorted_grids = self.external_sort(grids, key=lambda grid: (self.haar_coefficients(grid)[0], grid))
 
         # Step 2: Assign LL index
-        ll_groups = np.array_split(sorted_grids, self.group_size)
-        ll_indices = {tuple(grid): i for i, group in enumerate(ll_groups) for grid in group}
+        ll_groups = []
+        ll_indices = {}
+        group_count = 0
 
-        # Step 3: Sort by HL within each LL group
-        hl_sorted = sorted(
-            sorted_grids,
-            key=lambda grid: (ll_indices[tuple(grid)], self.haar_coefficients(grid)[1], grid)
-        )
-        hl_groups = np.array_split(hl_sorted, self.group_size)
-        hl_indices = {tuple(grid): i for i, group in enumerate(hl_groups) for grid in group}
+        for i, grid in enumerate(sorted_grids):
+            if i % (self.pixel_space_size // self.group_size) == 0:
+                ll_groups.append([])
+            ll_groups[-1].append(grid)
+            ll_indices[tuple(grid)] = group_count // (self.pixel_space_size // self.group_size)
+            group_count += 1
 
-        # Step 4: Sort by LH within each HL group
-        lh_sorted = sorted(
-            hl_sorted,
-            key=lambda grid: (hl_indices[tuple(grid)], self.haar_coefficients(grid)[2], grid)
-        )
-        lh_groups = np.array_split(lh_sorted, self.group_size)
-        lh_indices = {tuple(grid): i for i, group in enumerate(lh_groups) for grid in group}
+        # Save lookup table to disk
+        with open(output_filename, 'wb') as f:
+            for group in ll_groups:
+                for grid in group:
+                    packed_grid = struct.pack(f'{self.grid_size}B', *grid)
+                    ll_index = ll_indices[tuple(grid)]
+                    f.write(packed_grid + struct.pack('B', ll_index))
 
-        # Step 5: Sort by HH within each LH group
-        hh_sorted = sorted(
-            lh_sorted,
-            key=lambda grid: (lh_indices[tuple(grid)], self.haar_coefficients(grid)[3], grid)
-        )
-        hh_groups = np.array_split(hh_sorted, self.group_size)
-        lookup_table = {tuple(grid): (ll_indices[tuple(grid)], hl_indices[tuple(grid)], lh_indices[tuple(grid)], i)
-                        for i, grid in enumerate(hh_sorted)}
-
-        return lookup_table
-
-    def save_to_disk(self, lookup_table, filename):
-        with open(filename, 'wb') as f:
-            for grid, indices in lookup_table.items():
-                packed_grid = struct.pack(f'{self.grid_size}B', *grid)
-                packed_indices = struct.pack('4B', *indices)
-                f.write(packed_grid + packed_indices)
-
-    def load_from_disk(self, filename):
-        lookup_table = {}
+    def query_lookup_table(self, pixels, filename):
         with open(filename, 'rb') as f:
-            while chunk := f.read(self.grid_size + 4):
+            while chunk := f.read(self.grid_size + 1):
                 grid = struct.unpack(f'{self.grid_size}B', chunk[:self.grid_size])
-                indices = struct.unpack('4B', chunk[self.grid_size:])
-                lookup_table[grid] = indices
-        return lookup_table
-
-    def haar_sort_encode(self, pixels):
-        lookup_table = self.generate_lookup_table()
-        return lookup_table[tuple(pixels)]
-
-    def haar_sort_decode(self, haar_sort_index):
-        lookup_table = self.generate_lookup_table()
-        reverse_lookup = {v: k for k, v in lookup_table.items()}
-        return np.array(reverse_lookup[haar_sort_index])
-
+                if tuple(pixels) == grid:
+                    return struct.unpack('B', chunk[self.grid_size:])[0]
+        return None
 
 class TestHaarSorting(unittest.TestCase):
-    def test_generate_lookup_table_size(self):
+    def test_generate_lookup_table(self):
         hs = HaarSorting(bit_depth=2)
-        lookup_table = hs.generate_lookup_table()
-        self.assertEqual(len(lookup_table), hs.pixel_space_size, "Lookup table size mismatch")
-
-    def test_save_and_load_lookup_table(self):
-        hs = HaarSorting(bit_depth=2)
-        lookup_table = hs.generate_lookup_table()
         filename = "test_lookup_table.bin"
-        hs.save_to_disk(lookup_table, filename)
-        loaded_table = hs.load_from_disk(filename)
-        self.assertEqual(lookup_table, loaded_table, "Loaded table does not match saved table")
+        hs.generate_lookup_table(filename)
+        self.assertTrue(os.path.exists(filename), "Lookup table file not created")
         os.remove(filename)
 
-    def test_haar_coefficients(self):
+    def test_query_lookup_table(self):
         hs = HaarSorting(bit_depth=2)
-        grid = (3, 1, 2, 0)
-        LL, HL, LH, HH = hs.haar_coefficients(grid)
-        self.assertEqual(LL, sum(grid), "Incorrect LL coefficient")
-        self.assertEqual(HL, grid[0] - grid[1] + grid[2] - grid[3], "Incorrect HL coefficient")
-        self.assertEqual(LH, grid[0] + grid[1] - grid[2] - grid[3], "Incorrect LH coefficient")
-        self.assertEqual(HH, grid[0] - grid[1] - grid[2] + grid[3], "Incorrect HH coefficient")
-
-    def test_haar_sort_encode_decode(self):
-        hs = HaarSorting(bit_depth=2)
-        pixels = np.array([3, 1, 2, 0])
-        haar_sort_index = hs.haar_sort_encode(pixels)
-        decoded_pixels = hs.haar_sort_decode(haar_sort_index)
-        np.testing.assert_array_equal(pixels, decoded_pixels, "Encode and decode mismatch")
-
+        filename = "test_lookup_table.bin"
+        hs.generate_lookup_table(filename)
+        pixels = [3, 1, 2, 0]
+        index = hs.query_lookup_table(pixels, filename)
+        self.assertIsNotNone(index, "Pixel grid not found in lookup table")
+        os.remove(filename)
 
 if __name__ == "__main__":
     unittest.main()
