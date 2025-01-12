@@ -1,78 +1,120 @@
-import unittest
 import numpy as np
+import itertools
+import struct
+import os
+import unittest
 
 
-def haar_wavelet_transform(a, b, c, d):
-    """
-    Compute Haar wavelet coefficients (LL, HL, LH, HH) for a 2x2 grid of pixels.
+class HaarSorting:
+    def __init__(self, bit_depth=8):
+        self.bit_depth = bit_depth
+        self.pixel_space_size = 2 ** (4 * bit_depth)
+        self.grid_size = 4
+        self.max_value = 2 ** bit_depth - 1
+        self.group_size = 2 ** bit_depth
 
-    Parameters:
-        pixels (list): A list of 4 pixel values.
+    def haar_coefficients(self, grid):
+        a, b, c, d = grid
+        LL = a + b + c + d
+        HL = a - b + c - d
+        LH = a + b - c - d
+        HH = a - b - c + d
+        return LL, HL, LH, HH
 
-    Returns:
-        list: Haar wavelet coefficients [LL, HL, LH, HH].
-    """
+    def generate_lookup_table(self):
+        pixel_space = range(0, self.max_value + 1)
+        grids = itertools.product(pixel_space, repeat=self.grid_size)
 
-    LL = (a + b + c + d) / 4
-    HL = (a + b - c - d) / 4
-    LH = (a - b + c - d) / 4
-    HH = (a - b - c + d) / 4
-    return [LL, HL, LH, HH]
+        # Step 1: Sort grids by LL coefficient
+        sorted_grids = sorted(grids, key=lambda grid: (self.haar_coefficients(grid)[0], grid))
 
+        # Step 2: Assign LL index
+        ll_groups = np.array_split(sorted_grids, self.group_size)
+        ll_indices = {tuple(grid): i for i, group in enumerate(ll_groups) for grid in group}
 
-def haar_sort_index_from_pixels(pixels: np.ndarray) -> int:
-    """
-    Wrapper function to compute the Haar transform-based sort index for a given 2x2 grid of pixels.
-
-    Parameters:
-        pixels (np.ndarray): A numpy array of 4 pixel values (8-bit, 0-255).
-
-    Returns:
-        int: The computed index in the reordered Haar wavelet transform scheme.
-    """
-
-    def forward_recursive(pixels, level, start_index, group_size, max_level=4):
-        if level >= max_level:
-            return start_index  # Base case: final index at the deepest level
-
-        # Compute coefficient for the current filter level
-        coefficients = haar_wavelet_transform(*pixels)
-
-        # Sort order is determined by the coefficient at this level
-        coeff = coefficients[level]
-        subgroup_size = group_size // 4
-
-        # Determine the subgroup based on the coefficient
-        subgroup_index = int((coeff + 255) // (512 / 4))  # Map coefficient to one of 4 subgroups
-
-        # Recurse into the correct subgroup
-        return forward_recursive(
-            pixels,
-            level + 1,
-            start_index + subgroup_index * subgroup_size,
-            subgroup_size,
-            max_level
+        # Step 3: Sort by HL within each LL group
+        hl_sorted = sorted(
+            sorted_grids,
+            key=lambda grid: (ll_indices[tuple(grid)], self.haar_coefficients(grid)[1], grid)
         )
+        hl_groups = np.array_split(hl_sorted, self.group_size)
+        hl_indices = {tuple(grid): i for i, group in enumerate(hl_groups) for grid in group}
 
-    return forward_recursive(pixels.tolist(), 0, 0, 4_294_967_296)
+        # Step 4: Sort by LH within each HL group
+        lh_sorted = sorted(
+            hl_sorted,
+            key=lambda grid: (hl_indices[tuple(grid)], self.haar_coefficients(grid)[2], grid)
+        )
+        lh_groups = np.array_split(lh_sorted, self.group_size)
+        lh_indices = {tuple(grid): i for i, group in enumerate(lh_groups) for grid in group}
+
+        # Step 5: Sort by HH within each LH group
+        hh_sorted = sorted(
+            lh_sorted,
+            key=lambda grid: (lh_indices[tuple(grid)], self.haar_coefficients(grid)[3], grid)
+        )
+        hh_groups = np.array_split(hh_sorted, self.group_size)
+        lookup_table = {tuple(grid): (ll_indices[tuple(grid)], hl_indices[tuple(grid)], lh_indices[tuple(grid)], i)
+                        for i, grid in enumerate(hh_sorted)}
+
+        return lookup_table
+
+    def save_to_disk(self, lookup_table, filename):
+        with open(filename, 'wb') as f:
+            for grid, indices in lookup_table.items():
+                packed_grid = struct.pack(f'{self.grid_size}B', *grid)
+                packed_indices = struct.pack('4B', *indices)
+                f.write(packed_grid + packed_indices)
+
+    def load_from_disk(self, filename):
+        lookup_table = {}
+        with open(filename, 'rb') as f:
+            while chunk := f.read(self.grid_size + 4):
+                grid = struct.unpack(f'{self.grid_size}B', chunk[:self.grid_size])
+                indices = struct.unpack('4B', chunk[self.grid_size:])
+                lookup_table[grid] = indices
+        return lookup_table
+
+    def haar_sort_encode(self, pixels):
+        lookup_table = self.generate_lookup_table()
+        return lookup_table[tuple(pixels)]
+
+    def haar_sort_decode(self, haar_sort_index):
+        lookup_table = self.generate_lookup_table()
+        reverse_lookup = {v: k for k, v in lookup_table.items()}
+        return np.array(reverse_lookup[haar_sort_index])
 
 
-class TestHaarTransform(unittest.TestCase):
+class TestHaarSorting(unittest.TestCase):
+    def test_generate_lookup_table_size(self):
+        hs = HaarSorting(bit_depth=2)
+        lookup_table = hs.generate_lookup_table()
+        self.assertEqual(len(lookup_table), hs.pixel_space_size, "Lookup table size mismatch")
 
-    def test_haar_wavelet_transform(self):
-        result = haar_wavelet_transform(100, 150, 50, 200)
-        expected = [125.0, 0.0, -50.0, 25.0]
-        self.assertAlmostEqual(result[0], expected[0], places=5)
-        self.assertAlmostEqual(result[1], expected[1], places=5)
-        self.assertAlmostEqual(result[2], expected[2], places=5)
-        self.assertAlmostEqual(result[3], expected[3], places=5)
+    def test_save_and_load_lookup_table(self):
+        hs = HaarSorting(bit_depth=2)
+        lookup_table = hs.generate_lookup_table()
+        filename = "test_lookup_table.bin"
+        hs.save_to_disk(lookup_table, filename)
+        loaded_table = hs.load_from_disk(filename)
+        self.assertEqual(lookup_table, loaded_table, "Loaded table does not match saved table")
+        os.remove(filename)
 
-    def test_haar_sort_index_from_pixels(self):
-        pixels = np.array([100, 150, 50, 200])
-        index = haar_sort_index_from_pixels(pixels)
-        # Exact index depends on the recursive implementation logic
-        self.assertIsInstance(index, int)
-        self.assertGreaterEqual(index, 0)
+    def test_haar_coefficients(self):
+        hs = HaarSorting(bit_depth=2)
+        grid = (3, 1, 2, 0)
+        LL, HL, LH, HH = hs.haar_coefficients(grid)
+        self.assertEqual(LL, sum(grid), "Incorrect LL coefficient")
+        self.assertEqual(HL, grid[0] - grid[1] + grid[2] - grid[3], "Incorrect HL coefficient")
+        self.assertEqual(LH, grid[0] + grid[1] - grid[2] - grid[3], "Incorrect LH coefficient")
+        self.assertEqual(HH, grid[0] - grid[1] - grid[2] + grid[3], "Incorrect HH coefficient")
+
+    def test_haar_sort_encode_decode(self):
+        hs = HaarSorting(bit_depth=2)
+        pixels = np.array([3, 1, 2, 0])
+        haar_sort_index = hs.haar_sort_encode(pixels)
+        decoded_pixels = hs.haar_sort_decode(haar_sort_index)
+        np.testing.assert_array_equal(pixels, decoded_pixels, "Encode and decode mismatch")
 
 
 if __name__ == "__main__":
