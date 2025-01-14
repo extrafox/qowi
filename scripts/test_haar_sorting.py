@@ -217,6 +217,3 @@ class TestHaarSortTable(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.table.haar_sort_index_to_grid(9999999, self.forward_table)
 
-if __name__ == "__main__":
-    unittest.main()
-
