@@ -1,19 +1,14 @@
 import numpy as np
-import itertools
-import struct
-import os
 import unittest
+from itertools import product
 
-
-class HaarSorting:
-    def __init__(self, bit_depth=8):
+class HaarSortTable:
+    def __init__(self, bit_depth):
         self.bit_depth = bit_depth
-        self.pixel_space_size = 2 ** (4 * bit_depth)
-        self.grid_size = 4
-        self.max_value = 2 ** bit_depth - 1
-        self.group_size = 2 ** bit_depth
+        self.grouped_grids = None
 
-    def haar_coefficients(self, grid):
+    def _calculate_haar_coefficients(self, grid):
+        """Calculate Haar coefficients LL, HL, LH, HH without dividing by 4."""
         a, b, c, d = grid
         LL = a + b + c + d
         HL = a - b + c - d
@@ -21,101 +16,98 @@ class HaarSorting:
         HH = a - b - c + d
         return LL, HL, LH, HH
 
-    def generate_lookup_table(self):
-        pixel_space = range(0, self.max_value + 1)
-        grids = itertools.product(pixel_space, repeat=self.grid_size)
+    def grid_to_haar_sort_index(self, grid):
+        """Generate the sort index based on Haar LL coefficients and group assignment."""
+        for group_index, group in enumerate(self.grouped_grids):
+            if any((grid == g).all() for g in group):
+                return group_index
+        raise ValueError("Grid not found in precomputed groups.")
 
-        # Step 1: Sort grids by LL coefficient
-        sorted_grids = sorted(grids, key=lambda grid: (self.haar_coefficients(grid)[0], grid))
+    def haar_sort_index_to_grid(self, haar_sort_index):
+        """Map a Haar sort index back to the corresponding grid."""
+        if 0 <= haar_sort_index < len(self.grouped_grids):
+            return self.grouped_grids[haar_sort_index]
+        raise ValueError("Invalid Haar sort index.")
 
-        # Step 2: Assign LL index
-        ll_groups = np.array_split(sorted_grids, self.group_size)
-        ll_indices = {tuple(grid): i for i, group in enumerate(ll_groups) for grid in group}
+    def generate_all_possible_grids(self):
+        """Generate, sort, and group all possible 4-pixel grids for the given bit depth."""
+        max_value = (1 << self.bit_depth) - 1
+        grids = np.array(list(product(range(max_value + 1), repeat=4)), dtype=np.uint32)
+        grids = self._sort_grids_by_haar(grids)
+        self._split_into_groups(grids)
+        return grids
 
-        # Step 3: Sort by HL within each LL group
-        hl_sorted = sorted(
-            sorted_grids,
-            key=lambda grid: (ll_indices[tuple(grid)], self.haar_coefficients(grid)[1], grid)
-        )
-        hl_groups = np.array_split(hl_sorted, self.group_size)
-        hl_indices = {tuple(grid): i for i, group in enumerate(hl_groups) for grid in group}
+    def _sort_grids_by_haar(self, grids):
+        """Sort grids by Haar LL coefficients and lexicographical order."""
+        grids = sorted(grids, key=lambda grid: (self._calculate_haar_coefficients(grid)[0], tuple(grid)))
+        return np.array(grids, dtype=np.uint32)
 
-        # Step 4: Sort by LH within each HL group
-        lh_sorted = sorted(
-            hl_sorted,
-            key=lambda grid: (hl_indices[tuple(grid)], self.haar_coefficients(grid)[2], grid)
-        )
-        lh_groups = np.array_split(lh_sorted, self.group_size)
-        lh_indices = {tuple(grid): i for i, group in enumerate(lh_groups) for grid in group}
-
-        # Step 5: Sort by HH within each LH group
-        hh_sorted = sorted(
-            lh_sorted,
-            key=lambda grid: (lh_indices[tuple(grid)], self.haar_coefficients(grid)[3], grid)
-        )
-        hh_groups = np.array_split(hh_sorted, self.group_size)
-        lookup_table = {tuple(grid): (ll_indices[tuple(grid)], hl_indices[tuple(grid)], lh_indices[tuple(grid)], i)
-                        for i, grid in enumerate(hh_sorted)}
-
-        return lookup_table
-
-    def save_to_disk(self, lookup_table, filename):
-        with open(filename, 'wb') as f:
-            for grid, indices in lookup_table.items():
-                packed_grid = struct.pack(f'{self.grid_size}B', *grid)
-                packed_indices = struct.pack('4B', *indices)
-                f.write(packed_grid + packed_indices)
-
-    def load_from_disk(self, filename):
-        lookup_table = {}
-        with open(filename, 'rb') as f:
-            while chunk := f.read(self.grid_size + 4):
-                grid = struct.unpack(f'{self.grid_size}B', chunk[:self.grid_size])
-                indices = struct.unpack('4B', chunk[self.grid_size:])
-                lookup_table[grid] = indices
-        return lookup_table
-
-    def haar_sort_encode(self, pixels):
-        lookup_table = self.generate_lookup_table()
-        return lookup_table[tuple(pixels)]
-
-    def haar_sort_decode(self, haar_sort_index):
-        lookup_table = self.generate_lookup_table()
-        reverse_lookup = {v: k for k, v in lookup_table.items()}
-        return np.array(reverse_lookup[haar_sort_index])
-
+    def _split_into_groups(self, sorted_grids):
+        """Split sorted grids into 2 ** bit_depth groups."""
+        num_groups = 1 << self.bit_depth
+        group_size = len(sorted_grids) // num_groups
+        self.grouped_grids = [sorted_grids[i * group_size: (i + 1) * group_size] for i in range(num_groups)]
 
 class TestHaarSorting(unittest.TestCase):
-    def test_generate_lookup_table_size(self):
-        hs = HaarSorting(bit_depth=2)
-        lookup_table = hs.generate_lookup_table()
-        self.assertEqual(len(lookup_table), hs.pixel_space_size, "Lookup table size mismatch")
+    def test_generate_all_possible_grids(self):
+        bit_depth = 2
+        table = HaarSortTable(bit_depth)
+        grids = table.generate_all_possible_grids()
+        self.assertEqual(len(grids), 2 ** (bit_depth * 4))  # 4 bits per pixel, 4 pixels -> 256 combinations
 
-    def test_save_and_load_lookup_table(self):
-        hs = HaarSorting(bit_depth=2)
-        lookup_table = hs.generate_lookup_table()
-        filename = "test_lookup_table.bin"
-        hs.save_to_disk(lookup_table, filename)
-        loaded_table = hs.load_from_disk(filename)
-        self.assertEqual(lookup_table, loaded_table, "Loaded table does not match saved table")
-        os.remove(filename)
+    def test_sort_grids_by_haar(self):
+        bit_depth = 2
+        table = HaarSortTable(bit_depth)
+        grids = table.generate_all_possible_grids()
 
-    def test_haar_coefficients(self):
-        hs = HaarSorting(bit_depth=2)
-        grid = (3, 1, 2, 0)
-        LL, HL, LH, HH = hs.haar_coefficients(grid)
-        self.assertEqual(LL, sum(grid), "Incorrect LL coefficient")
-        self.assertEqual(HL, grid[0] - grid[1] + grid[2] - grid[3], "Incorrect HL coefficient")
-        self.assertEqual(LH, grid[0] + grid[1] - grid[2] - grid[3], "Incorrect LH coefficient")
-        self.assertEqual(HH, grid[0] - grid[1] - grid[2] + grid[3], "Incorrect HH coefficient")
+        # Validate sorted order by LL coefficient
+        previous_LL = None
+        for grid in grids:
+            LL, _, _, _ = table._calculate_haar_coefficients(grid)
+            if previous_LL is not None:
+                self.assertLessEqual(previous_LL, LL)
+            previous_LL = LL
 
-    def test_haar_sort_encode_decode(self):
-        hs = HaarSorting(bit_depth=2)
-        pixels = np.array([3, 1, 2, 0])
-        haar_sort_index = hs.haar_sort_encode(pixels)
-        decoded_pixels = hs.haar_sort_decode(haar_sort_index)
-        np.testing.assert_array_equal(pixels, decoded_pixels, "Encode and decode mismatch")
+    def test_grid_to_haar_sort_index_and_back(self):
+        bit_depth = 2
+        table = HaarSortTable(bit_depth)
+        grids = table.generate_all_possible_grids()
 
+        for group_index, group in enumerate(table.grouped_grids):
+            for grid in group:
+                index = table.grid_to_haar_sort_index(grid)
+                self.assertEqual(index, group_index)
+                self.assertTrue(np.array_equal(table.haar_sort_index_to_grid(index), group))
+
+    def test_group_consistency(self):
+        bit_depth = 3
+        table = HaarSortTable(bit_depth)
+        grids = table.generate_all_possible_grids()
+
+        all_grouped_grids = np.concatenate(table.grouped_grids)
+        self.assertEqual(len(grids), len(all_grouped_grids))
+        self.assertEqual(len(set(map(tuple, all_grouped_grids))), len(grids))  # No duplicates
+
+    def test_invalid_inputs(self):
+        bit_depth = 2
+        table = HaarSortTable(bit_depth)
+        table.generate_all_possible_grids()
+
+        with self.assertRaises(ValueError):
+            table.grid_to_haar_sort_index(np.array([999, 999, 999, 999]))  # Grid not in groups
+
+        with self.assertRaises(ValueError):
+            table.haar_sort_index_to_grid(-1)  # Negative index
+
+        with self.assertRaises(ValueError):
+            table.haar_sort_index_to_grid(1 << bit_depth)  # Out-of-range index
 
 if __name__ == "__main__":
+    bit_depth = 4  # Example bit depth
+    table = HaarSortTable(bit_depth)
+    grids = table.generate_all_possible_grids()
+
+    # Save sorted grids to validate the LL_index generation
+    print(f"Generated {len(table.grouped_grids)} groups for bit depth {bit_depth}.")
+
     unittest.main()
