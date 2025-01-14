@@ -40,6 +40,9 @@ class HaarSortTable:
         # Sort by HL coefficients within LL groups
         grids = self._sort_grids_by_haar(grids, index=1)
 
+        # Sort by LH coefficients within HL groups
+        grids = self._sort_grids_by_haar(grids, index=2)
+
         # Flatten the sorted grids
         self.ordered_grids = grids
 
@@ -87,6 +90,16 @@ class TestHaarSorting(unittest.TestCase):
             if previous_HL is not None:
                 self.assertLessEqual(previous_HL, HL)
             previous_HL = HL
+
+        # Validate LH sorting within HL groups
+        grids = table._sort_grids_by_haar(grids, index=2)
+        previous_LH = None
+        for grid in grids:
+            _, _, LH, _ = table._calculate_haar_coefficients(grid)
+            print(f"Grid: {grid}, LH: {LH}")  # Debug output
+            if previous_LH is not None:
+                self.assertLessEqual(previous_LH, LH)
+            previous_LH = LH
 
     def test_grid_to_haar_sort_index_and_back(self):
         bit_depth = 2
