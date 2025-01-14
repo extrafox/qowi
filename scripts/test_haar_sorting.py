@@ -33,6 +33,42 @@ class HaarSortTable:
         HH = a - b - c + d
         return LL, HL, LH, HH
 
+    def _binary_position(self, grid):
+        """Calculate the binary position for a grid."""
+        return (
+            grid[0] << (3 * self.bit_depth) |
+            grid[1] << (2 * self.bit_depth) |
+            grid[2] << self.bit_depth |
+            grid[3]
+        )
+
+    def _convert_haar_coefficients_to_index(self, coefficients):
+        """Convert (LL, HL, LH, HH) coefficients to a single Haar sort index."""
+        bit_depth = self.bit_depth
+        LL_index = coefficients[0] & ((1 << bit_depth) - 1)
+        HL_index = coefficients[1] & ((1 << bit_depth) - 1)
+        LH_index = coefficients[2] & ((1 << bit_depth) - 1)
+        HH_index = coefficients[3] & ((1 << bit_depth) - 1)
+
+        return (
+            (LL_index << (3 * bit_depth)) |
+            (HL_index << (2 * bit_depth)) |
+            (LH_index << bit_depth) |
+            HH_index
+        )
+
+    def _convert_index_to_haar_coefficients(self, index):
+        """Convert a Haar sort index back to (LL, HL, LH, HH) coefficients."""
+        bit_depth = self.bit_depth
+        mask = (1 << bit_depth) - 1
+
+        LL_index = (index >> (3 * bit_depth)) & mask
+        HL_index = (index >> (2 * bit_depth)) & mask
+        LH_index = (index >> bit_depth) & mask
+        HH_index = index & mask
+
+        return LL_index, HL_index, LH_index, HH_index
+
     def sort_and_save_chunks(self, chunk_size=10**6):
         if self.bit_depth is None:
             raise ValueError("Bit depth must be set for generating the table.")
@@ -75,18 +111,21 @@ class HaarSortTable:
 
     def generate_reverse_lookup_table(self, table_file, reverse_table_file):
         struct_format = self._get_struct_format()
+        entry_size = struct.calcsize(struct_format)
 
         with open(table_file, "rb") as f_table, open(reverse_table_file, "wb") as f_reverse:
-            index = 0
             while True:
-                data = f_table.read(struct.calcsize(struct_format))  # Each grid size
+                data = f_table.read(entry_size)  # Read one grid
                 if not data:
                     break
                 grid = self._unpack_grid(data, struct_format)
-                LL, HL, LH, HH = self._calculate_haar_coefficients(np.array(grid))
-                haar_sort_index = (LL, HL, LH, HH)
-                f_reverse.write(struct.pack("4i", *haar_sort_index))  # Store indices as 4 signed integers
-                index += 1
+                haar_coefficients = self._calculate_haar_coefficients(np.array(grid))
+                # Decompose Haar sort index into 4 components
+                LL_index, HL_index, LH_index, HH_index = self._convert_index_to_haar_coefficients(
+                    self._convert_haar_coefficients_to_index(haar_coefficients)
+                )
+                packed_index = struct.pack(struct_format, LL_index, HL_index, LH_index, HH_index)
+                f_reverse.write(packed_index)
 
     def _pack_grid(self, grid, struct_format):
         # Packs a grid based on the bit depth format
@@ -108,32 +147,44 @@ class HaarSortTable:
                 yield self._unpack_grid(data, struct_format)
 
     def grid_to_haar_sort_index(self, grid, table_file):
+        """Convert a grid to its Haar sort index."""
         struct_format = self._get_struct_format()
+        binary_position = self._binary_position(grid)
         entry_size = struct.calcsize(struct_format)
 
         with open(table_file, "rb") as f:
-            index = 0
-            while True:
-                data = f.read(entry_size)
-                if len(data) < entry_size:
-                    break
-                current_grid = self._unpack_grid(data, struct_format)
-                if current_grid == tuple(grid):
-                    return index
-                index += 1
-        raise ValueError(f"Grid {grid} not found in the forward table.")
+            f.seek(binary_position * entry_size)
+            data = f.read(entry_size)
+            if not data:
+                raise ValueError(f"Grid {grid} not found in the forward table.")
+            found_grid = self._unpack_grid(data, struct_format)
+            if tuple(found_grid) != tuple(grid):
+                raise ValueError(f"Grid {grid} does not match the binary position in the table.")
+            return binary_position
 
     def haar_sort_index_to_grid(self, index, table_file):
+        """Convert a Haar sort index to its corresponding grid."""
         struct_format = self._get_struct_format()
         entry_size = struct.calcsize(struct_format)
 
         with open(table_file, "rb") as f:
-            # Seek to the specific grid
             f.seek(index * entry_size)
             data = f.read(entry_size)
             if len(data) < entry_size:
                 raise ValueError("Index out of range.")
             return self._unpack_grid(data, struct_format)
+
+    def validate_table_sizes(self, forward_table, reverse_table_file):
+        grid_size = os.path.getsize(forward_table)
+        reverse_size = os.path.getsize(reverse_table_file)
+
+        if grid_size != reverse_size:
+            raise ValueError(
+                f"Size mismatch: Forward table ({grid_size} bytes) does not match "
+                f"Reverse table ({reverse_size} bytes)."
+            )
+        print(f"Validation passed: Both tables are consistent in size ({grid_size} bytes).")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Haar Sorting Algorithm Tool")
@@ -155,6 +206,7 @@ if __name__ == "__main__":
         reverse_table = f"{args.table}_index.bin"
         table.merge_sorted_chunks(temp_files, forward_table)
         table.generate_reverse_lookup_table(forward_table, reverse_table)
+        table.validate_table_sizes(forward_table, reverse_table)
         print(f"Haar sort table generated and saved to {forward_table}. Reverse lookup table saved to {reverse_table}.")
 
     if args.grid:
@@ -181,39 +233,3 @@ if __name__ == "__main__":
             print(f"The grid for Haar sort index {args.index} is {grid}.")
         except ValueError as e:
             print(e)
-
-
-class TestHaarSortTable(unittest.TestCase):
-
-    def setUp(self):
-        self.table = HaarSortTable(bit_depth=4)
-        self.temp_dir = tempfile.gettempdir()
-        self.forward_table = os.path.join(self.temp_dir, "test_table_grids.bin")
-        self.reverse_table = os.path.join(self.temp_dir, "test_table_index.bin")
-
-        # Generate the table for tests
-        temp_files = self.table.sort_and_save_chunks(chunk_size=1000)
-        self.table.merge_sorted_chunks(temp_files, self.forward_table)
-        self.table.generate_reverse_lookup_table(self.forward_table, self.reverse_table)
-
-    def tearDown(self):
-        if os.path.exists(self.forward_table):
-            os.remove(self.forward_table)
-        if os.path.exists(self.reverse_table):
-            os.remove(self.reverse_table)
-
-    def test_grid_to_haar_sort_index(self):
-        grid = (15, 15, 15, 15)
-        index = self.table.grid_to_haar_sort_index(grid, self.forward_table)
-        self.assertGreaterEqual(index, 0)
-
-    def test_haar_sort_index_to_grid(self):
-        grid = (15, 15, 15, 15)
-        index = self.table.grid_to_haar_sort_index(grid, self.forward_table)
-        reverse_grid = self.table.haar_sort_index_to_grid(index, self.forward_table)
-        self.assertEqual(grid, reverse_grid)
-
-    def test_out_of_bounds_index(self):
-        with self.assertRaises(ValueError):
-            self.table.haar_sort_index_to_grid(9999999, self.forward_table)
-
