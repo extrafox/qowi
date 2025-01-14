@@ -1,6 +1,7 @@
 import numpy as np
 import unittest
 from itertools import product
+import argparse
 
 class HaarSortTable:
     def __init__(self, bit_depth):
@@ -55,6 +56,34 @@ class HaarSortTable:
         """Sort grids by a specified Haar coefficient and lexicographical order."""
         grids = sorted(grids, key=lambda grid: (self._calculate_haar_coefficients(grid)[index], tuple(grid)))
         return np.array(grids, dtype=np.uint32)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Haar Sorting Algorithm Tool")
+    parser.add_argument("--bit_depth", type=int, required=True, help="Set the bit depth for the grids.")
+    parser.add_argument("--grid", nargs=4, type=int, help="Provide four pixel values to get the Haar sort index.")
+    parser.add_argument("--index", type=int, help="Provide a Haar sort index to get the corresponding pixel values.")
+    args = parser.parse_args()
+
+    # Initialize HaarSortTable with the given bit depth
+    table = HaarSortTable(args.bit_depth)
+    table.generate_all_possible_grids()
+
+    if args.grid:
+        # Convert grid to Haar sort index
+        grid = np.array(args.grid, dtype=np.uint32)
+        try:
+            index = table.grid_to_haar_sort_index(grid)
+            print(f"The Haar sort index for grid {grid.tolist()} is {index}.")
+        except ValueError as e:
+            print(e)
+
+    if args.index is not None:
+        # Convert Haar sort index to grid
+        try:
+            grid = table.haar_sort_index_to_grid(args.index)
+            print(f"The grid for Haar sort index {args.index} is {grid.tolist()}.")
+        except ValueError as e:
+            print(e)
 
 class TestHaarSorting(unittest.TestCase):
     def test_generate_all_possible_grids(self):
@@ -132,12 +161,4 @@ class TestHaarSorting(unittest.TestCase):
         with self.assertRaises(ValueError):
             table.haar_sort_index_to_grid(len(table.ordered_grids))  # Out-of-range index
 
-if __name__ == "__main__":
-    bit_depth = 4  # Example bit depth
-    table = HaarSortTable(bit_depth)
-    grids = table.generate_all_possible_grids()
-
-    # Print the number of grids generated for validation
-    print(f"Generated {len(table.ordered_grids)} grids for bit depth {bit_depth}.")
-
-    unittest.main()
+# Note: To run tests, use the command: python -m unittest <script_name>.py
