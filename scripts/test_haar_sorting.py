@@ -1,164 +1,190 @@
 import numpy as np
-import unittest
-from itertools import product
+import os
+import tempfile
 import argparse
+from itertools import islice, product
+import heapq
+import struct
+import unittest
 
 class HaarSortTable:
-    def __init__(self, bit_depth):
+    def __init__(self, bit_depth, temp_dir=None):
         self.bit_depth = bit_depth
-        self.ordered_grids = None
+        self.temp_dir = temp_dir or tempfile.gettempdir()
+        self.sorted_file = None
 
     def _calculate_haar_coefficients(self, grid):
-        """Calculate Haar coefficients LL, HL, LH, HH without dividing by 4."""
-        a, b, c, d = grid.astype(np.int32)  # Cast to signed integer for safe arithmetic
+        a, b, c, d = grid.astype(np.int32)
         LL = a + b + c + d
         HL = a - b + c - d
         LH = a + b - c - d
         HH = a - b - c + d
         return LL, HL, LH, HH
 
-    def grid_to_haar_sort_index(self, grid):
-        """Get the Haar sort index of the grid in the ordered list."""
-        for index, g in enumerate(self.ordered_grids):
-            if np.array_equal(grid, g):
-                return index
-        raise ValueError(f"Grid {grid} not found in the ordered list.")
-
-    def haar_sort_index_to_grid(self, haar_sort_index):
-        """Map a Haar sort index back to the corresponding grid."""
-        if haar_sort_index < 0 or haar_sort_index >= len(self.ordered_grids):
-            raise ValueError(f"Invalid Haar sort index: {haar_sort_index}")
-        return self.ordered_grids[haar_sort_index]
-
-    def generate_all_possible_grids(self):
-        """Generate, sort, and flatten all possible 4-pixel grids for the given bit depth."""
+    def sort_and_save_chunks(self, chunk_size=10**6):
         max_value = (1 << self.bit_depth) - 1
-        grids = np.array(list(product(range(max_value + 1), repeat=4)), dtype=np.uint32)
+        all_grids = product(range(max_value + 1), repeat=4)
+        temp_files = []
 
-        # Sort by LL coefficients
-        grids = self._sort_grids_by_haar(grids, index=0)
+        while True:
+            chunk = list(islice(all_grids, chunk_size))
+            if not chunk:
+                break
+            chunk = sorted(chunk, key=lambda grid: (*self._calculate_haar_coefficients(np.array(grid)), grid))
+            temp_file = os.path.join(self.temp_dir, f"sorted_chunk_{len(temp_files)}.bin")
+            with open(temp_file, "wb") as f:
+                for grid in chunk:
+                    f.write(struct.pack("4I", *grid))
+            temp_files.append(temp_file)
 
-        # Sort by HL coefficients within LL groups
-        grids = self._sort_grids_by_haar(grids, index=1)
+        return temp_files
 
-        # Sort by LH coefficients within HL groups
-        grids = self._sort_grids_by_haar(grids, index=2)
+    def merge_sorted_chunks(self, temp_files, output_file):
+        with open(output_file, "wb") as f_out:
+            sorted_streams = [self._read_binary_file(file) for file in temp_files]
+            for grid in heapq.merge(*sorted_streams, key=lambda grid: (*self._calculate_haar_coefficients(np.array(grid)), grid)):
+                f_out.write(struct.pack("4I", *grid))
+        self.sorted_file = output_file
+        for file in temp_files:
+            os.remove(file)
 
-        # Sort by HH coefficients within LH groups
-        grids = self._sort_grids_by_haar(grids, index=3)
+    def _read_binary_file(self, file_path):
+        with open(file_path, "rb") as f:
+            while True:
+                data = f.read(16)  # Each grid is 4 uint32s (4 x 4 bytes = 16 bytes)
+                if not data:
+                    break
+                yield struct.unpack("4I", data)
 
-        # Flatten the sorted grids
-        self.ordered_grids = grids
+    def grid_to_haar_sort_index(self, grid, table_file):
+        with open(table_file, "rb") as f:
+            index = 0
+            while True:
+                data = f.read(16)
+                if not data:
+                    break
+                current_grid = struct.unpack("4I", data)
+                if np.array_equal(current_grid, grid):
+                    return index
+                index += 1
+        raise ValueError("Grid not found.")
 
-        return grids
+    def haar_sort_index_to_grid(self, index, table_file):
+        with open(table_file, "rb") as f:
+            # Calculate the maximum valid index
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            max_index = file_size // 16 - 1
 
-    def _sort_grids_by_haar(self, grids, index):
-        """Sort grids by a specified Haar coefficient and lexicographical order."""
-        grids = sorted(grids, key=lambda grid: (self._calculate_haar_coefficients(grid)[index], tuple(grid)))
-        return np.array(grids, dtype=np.uint32)
+            if index < 0 or index > max_index:
+                raise ValueError(f"Index out of range. Valid range: 0 to {max_index}.")
+
+            # Seek to the correct position
+            f.seek(index * 16)
+            data = f.read(16)
+            return struct.unpack("4I", data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Haar Sorting Algorithm Tool")
-    parser.add_argument("--bit_depth", type=int, required=True, help="Set the bit depth for the grids.")
+    parser.add_argument("--bit_depth", type=int, required=False, help="Set the bit depth for the grids.")
+    parser.add_argument("--generate", action="store_true", help="Generate and sort a Haar sort table.")
+    parser.add_argument("--chunk_size", type=int, default=10**6, help="Set the chunk size for sorting.")
+    parser.add_argument("--output", type=str, help="Output file for the Haar sort table.")
     parser.add_argument("--grid", nargs=4, type=int, help="Provide four pixel values to get the Haar sort index.")
     parser.add_argument("--index", type=int, help="Provide a Haar sort index to get the corresponding pixel values.")
+    parser.add_argument("--table", type=str, help="Path to the Haar sort table file.")
     args = parser.parse_args()
 
-    # Initialize HaarSortTable with the given bit depth
-    table = HaarSortTable(args.bit_depth)
-    table.generate_all_possible_grids()
+    if args.generate:
+        if not args.bit_depth or not args.output:
+            print("--bit_depth and --output are required for table generation.")
+            exit(1)
+        table = HaarSortTable(args.bit_depth)
+        temp_files = table.sort_and_save_chunks(chunk_size=args.chunk_size)
+        table.merge_sorted_chunks(temp_files, args.output)
+        print(f"Haar sort table generated and saved to {args.output}.")
 
     if args.grid:
-        # Convert grid to Haar sort index
+        if not args.table:
+            print("--table is required to convert a grid to an index.")
+            exit(1)
         grid = np.array(args.grid, dtype=np.uint32)
+        table = HaarSortTable(args.bit_depth or 8)  # Bit depth is not critical for this operation
         try:
-            index = table.grid_to_haar_sort_index(grid)
+            index = table.grid_to_haar_sort_index(grid, args.table)
             print(f"The Haar sort index for grid {grid.tolist()} is {index}.")
         except ValueError as e:
             print(e)
 
     if args.index is not None:
-        # Convert Haar sort index to grid
+        if not args.table:
+            print("--table is required to convert an index to a grid.")
+            exit(1)
+        table = HaarSortTable(args.bit_depth or 8)  # Bit depth is not critical for this operation
         try:
-            grid = table.haar_sort_index_to_grid(args.index)
-            print(f"The grid for Haar sort index {args.index} is {grid.tolist()}.")
+            grid = table.haar_sort_index_to_grid(args.index, args.table)
+            print(f"The grid for Haar sort index {args.index} is {grid}.")
         except ValueError as e:
             print(e)
 
 class TestHaarSorting(unittest.TestCase):
-    def test_generate_all_possible_grids(self):
+    def test_sort_and_merge(self):
         bit_depth = 2
         table = HaarSortTable(bit_depth)
-        grids = table.generate_all_possible_grids()
-        self.assertEqual(len(grids), 2 ** (bit_depth * 4))  # 4 bits per pixel, 4 pixels -> 256 combinations
+        temp_files = table.sort_and_save_chunks(chunk_size=10)
+        output_file = os.path.join(table.temp_dir, "test_sorted_table.bin")
+        table.merge_sorted_chunks(temp_files, output_file)
 
-    def test_sort_grids_by_haar(self):
+        grids = []
+        with open(output_file, "rb") as f:
+            while True:
+                data = f.read(16)
+                if not data:
+                    break
+                grids.append(struct.unpack("4I", data))
+
+        # Ensure all grids are sorted
+        previous = None
+        for grid in grids:
+            if previous is not None:
+                self.assertLessEqual(
+                    (*table._calculate_haar_coefficients(np.array(previous)), previous),
+                    (*table._calculate_haar_coefficients(np.array(grid)), grid)
+                )
+            previous = grid
+
+        os.remove(output_file)
+
+    def test_grid_to_index_and_back(self):
         bit_depth = 2
         table = HaarSortTable(bit_depth)
-        max_value = (1 << bit_depth) - 1
+        temp_files = table.sort_and_save_chunks(chunk_size=10)
+        output_file = os.path.join(table.temp_dir, "test_sorted_table.bin")
+        table.merge_sorted_chunks(temp_files, output_file)
 
-        # Generate all grids
-        grids = np.array(list(product(range(max_value + 1), repeat=4)), dtype=np.uint32)
+        test_grid = (0, 1, 2, 3)
+        index = table.grid_to_haar_sort_index(test_grid, output_file)
+        recovered_grid = table.haar_sort_index_to_grid(index, output_file)
 
-        # Validate LL sorting
-        grids = table._sort_grids_by_haar(grids, index=0)
-        previous_LL = None
-        for grid in grids:
-            LL, _, _, _ = table._calculate_haar_coefficients(grid)
-            if previous_LL is not None:
-                self.assertLessEqual(previous_LL, LL)
-            previous_LL = LL
-
-        # Validate HL sorting within LL groups
-        grids = table._sort_grids_by_haar(grids, index=1)
-        previous_HL = None
-        for grid in grids:
-            _, HL, _, _ = table._calculate_haar_coefficients(grid)
-            if previous_HL is not None:
-                self.assertLessEqual(previous_HL, HL)
-            previous_HL = HL
-
-        # Validate LH sorting within HL groups
-        grids = table._sort_grids_by_haar(grids, index=2)
-        previous_LH = None
-        for grid in grids:
-            _, _, LH, _ = table._calculate_haar_coefficients(grid)
-            if previous_LH is not None:
-                self.assertLessEqual(previous_LH, LH)
-            previous_LH = LH
-
-        # Validate HH sorting within LH groups
-        grids = table._sort_grids_by_haar(grids, index=3)
-        previous_HH = None
-        for grid in grids:
-            _, _, _, HH = table._calculate_haar_coefficients(grid)
-            if previous_HH is not None:
-                self.assertLessEqual(previous_HH, HH)
-            previous_HH = HH
-
-    def test_grid_to_haar_sort_index_and_back(self):
-        bit_depth = 2
-        table = HaarSortTable(bit_depth)
-        grids = table.generate_all_possible_grids()
-
-        for index, grid in enumerate(grids):
-            retrieved_index = table.grid_to_haar_sort_index(grid)
-            self.assertEqual(index, retrieved_index)
-            retrieved_grid = table.haar_sort_index_to_grid(retrieved_index)
-            self.assertTrue(np.array_equal(grid, retrieved_grid))
+        self.assertEqual(test_grid, recovered_grid)
+        os.remove(output_file)
 
     def test_invalid_inputs(self):
         bit_depth = 2
         table = HaarSortTable(bit_depth)
-        table.generate_all_possible_grids()
+        temp_files = table.sort_and_save_chunks(chunk_size=10)
+        output_file = os.path.join(table.temp_dir, "test_sorted_table.bin")
+        table.merge_sorted_chunks(temp_files, output_file)
 
         with self.assertRaises(ValueError):
-            table.grid_to_haar_sort_index(np.array([999, 999, 999, 999]))  # Grid not in the ordered list
+            table.grid_to_haar_sort_index((999, 999, 999, 999), output_file)
 
         with self.assertRaises(ValueError):
-            table.haar_sort_index_to_grid(-1)  # Negative index
+            table.haar_sort_index_to_grid(-1, output_file)
 
         with self.assertRaises(ValueError):
-            table.haar_sort_index_to_grid(len(table.ordered_grids))  # Out-of-range index
+            table.haar_sort_index_to_grid(10**6, output_file)
 
-# Note: To run tests, use the command: python -m unittest <script_name>.py
+        os.remove(output_file)
+
+# To run tests, use: python -m unittest <script_name>.py
