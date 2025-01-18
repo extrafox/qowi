@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Haar Sorting Algorithm Tool")
     parser.add_argument("--generate", action="store_true", help="Generate and sort a Haar sort table.")
     parser.add_argument("--bit_depth", type=int, help="Set the bit depth for the grids (required for generation).")
-    parser.add_argument("--chunk_size", type=int, default=250_000_000, help="Set the chunk size for sorting.")
+    parser.add_argument("--chunk_size", type=int, default=5_000_000, help="Set the chunk size for sorting.")
     parser.add_argument("-t", "--table", type=str, help="Table prefix for Haar sort files.")
     args = parser.parse_args()
 
