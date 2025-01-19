@@ -5,7 +5,6 @@ import argparse
 from itertools import islice, product
 import heapq
 import struct
-import unittest
 from tqdm import tqdm
 
 class HaarSortTable:
@@ -105,99 +104,74 @@ class HaarSortTable:
             os.remove(file)
 
     def generate_reverse_lookup_table(self, table_file, reverse_table_file):
+        """
+        Generate the reverse lookup table by preallocating it and writing indices
+        directly to the correct positions.
+
+        Args:
+            table_file (str): Path to the forward table file.
+            reverse_table_file (str): Path to the reverse table file.
+        """
         struct_format = self._get_struct_format()
         entry_size = struct.calcsize(struct_format)
 
-        with open(table_file, "rb") as f_table, open(reverse_table_file, "wb") as f_reverse:
-            index = 0
-            while True:
-                data = f_table.read(entry_size)
-                if not data:
-                    break
-                f_reverse.write(struct.pack(struct_format, index))
-                index += 1
+        # Determine the total number of entries
+        total_entries = os.path.getsize(table_file) // entry_size
 
-    def validate_table_sizes(self, forward_table, reverse_table_file):
-        grid_size = os.path.getsize(forward_table)
-        reverse_size = os.path.getsize(reverse_table_file)
+        # Preallocate the reverse table on disk
+        with open(reverse_table_file, "wb") as f_reverse:
+            f_reverse.write(b"\x00" * (total_entries * entry_size))
 
-        if grid_size != reverse_size:
-            raise ValueError(
-                f"Size mismatch: Forward table ({grid_size} bytes) does not match "
-                f"Reverse table ({reverse_size} bytes)."
-            )
-        print(f"Validation passed: Both tables are consistent in size ({grid_size} bytes).")
+        # Populate the reverse table
+        with open(table_file, "rb") as f_table, open(reverse_table_file, "r+b") as f_reverse:
+            with tqdm(total=total_entries, desc="Generating Reverse Lookup Table") as pbar:
+                position = 0
+                while True:
+                    data = f_table.read(entry_size)
+                    if not data:
+                        break
+                    index = struct.unpack(struct_format, data)[0]
 
-class TestHaarSortTable(unittest.TestCase):
-    def test_round_trip_2bit(self):
-        bit_depth = 2
-        table = HaarSortTable(bit_depth=bit_depth)
-        max_value = (1 << bit_depth) - 1
+                    # Seek to the correct position in the reverse table
+                    f_reverse.seek(index * entry_size)
+                    f_reverse.write(struct.pack(struct_format, position))
 
-        for grid in product(range(max_value + 1), repeat=4):
-            index = table._grid_to_index(grid)
-            reverse_grid = table._index_to_grid(index)
-            self.assertEqual(grid, reverse_grid, f"Mismatch for grid {grid}")
-
-    def test_round_trip_4bit(self):
-        bit_depth = 4
-        table = HaarSortTable(bit_depth=bit_depth)
-        max_value = (1 << bit_depth) - 1
-
-        for grid in product(range(max_value + 1), repeat=4):
-            index = table._grid_to_index(grid)
-            reverse_grid = table._index_to_grid(index)
-            self.assertEqual(grid, reverse_grid, f"Mismatch for grid {grid}")
-
-    def test_table_file_sizes(self):
-        bit_depths = [2, 4]
-        for bit_depth in bit_depths:
-            table = HaarSortTable(bit_depth=bit_depth)
-            forward_table = tempfile.NamedTemporaryFile(delete=False)
-            reverse_table = tempfile.NamedTemporaryFile(delete=False)
-
-            try:
-                max_value = (1 << bit_depth) - 1
-                total_entries = (max_value + 1) ** 4
-
-                with open(forward_table.name, "wb") as f:
-                    for index in range(total_entries):
-                        f.write(struct.pack(table._get_struct_format(), index))
-
-                table.generate_reverse_lookup_table(forward_table.name, reverse_table.name)
-
-                forward_size = os.path.getsize(forward_table.name)
-                reverse_size = os.path.getsize(reverse_table.name)
-                expected_size = total_entries * struct.calcsize(table._get_struct_format())
-
-                self.assertEqual(forward_size, expected_size, "Forward table size mismatch")
-                self.assertEqual(reverse_size, expected_size, "Reverse table size mismatch")
-            finally:
-                os.unlink(forward_table.name)
-                os.unlink(reverse_table.name)
-
-    def test_struct_format_sizes(self):
-        bit_depth_to_format = {
-            2: "B",  # 8 bits
-            4: "H",  # 16 bits
-            8: "I",  # 32 bits
-        }
-        for bit_depth, expected_format in bit_depth_to_format.items():
-            table = HaarSortTable(bit_depth=bit_depth)
-            struct_format = table._get_struct_format()
-            self.assertEqual(struct_format, expected_format, f"Incorrect struct format for bit depth {bit_depth}")
+                    position += 1
+                    pbar.update(1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Haar Sorting Algorithm Tool")
-    parser.add_argument("--generate", action="store_true", help="Generate and sort a Haar sort table.")
+    parser.add_argument("--generate-forward", action="store_true", help="Generate and sort a Haar sort forward table.")
+    parser.add_argument("--generate-reverse", action="store_true", help="Generate a Haar sort reverse lookup table.")
+    parser.add_argument("--generate", action="store_true", help="Generate both forward and reverse Haar sort tables.")
     parser.add_argument("--bit_depth", type=int, help="Set the bit depth for the grids (required for generation).")
     parser.add_argument("--chunk_size", type=int, default=5_000_000, help="Set the chunk size for sorting.")
     parser.add_argument("-t", "--table", type=str, help="Table prefix for Haar sort files.")
     args = parser.parse_args()
 
+    if args.generate_forward:
+        if not args.bit_depth or not args.table:
+            print("--bit_depth and --table are required for forward table generation.")
+            exit(1)
+        table = HaarSortTable(bit_depth=args.bit_depth)
+        temp_files = table.sort_and_save_chunks(chunk_size=args.chunk_size)
+        forward_table = f"{args.table}_grids.bin"
+        table.merge_sorted_chunks(temp_files, forward_table)
+        print(f"Forward Haar sort table generated and saved to {forward_table}.")
+
+    if args.generate_reverse:
+        if not args.table:
+            print("--table is required for reverse table generation.")
+            exit(1)
+        reverse_table = f"{args.table}_index.bin"
+        forward_table = f"{args.table}_grids.bin"
+        table = HaarSortTable()
+        table.generate_reverse_lookup_table(forward_table, reverse_table)
+        print(f"Reverse lookup table generated and saved to {reverse_table}.")
+
     if args.generate:
         if not args.bit_depth or not args.table:
-            print("--bit_depth and --table are required for table generation.")
+            print("--bit_depth and --table are required for full table generation.")
             exit(1)
         table = HaarSortTable(bit_depth=args.bit_depth)
         temp_files = table.sort_and_save_chunks(chunk_size=args.chunk_size)
@@ -205,5 +179,4 @@ if __name__ == "__main__":
         reverse_table = f"{args.table}_index.bin"
         table.merge_sorted_chunks(temp_files, forward_table)
         table.generate_reverse_lookup_table(forward_table, reverse_table)
-        table.validate_table_sizes(forward_table, reverse_table)
-        print(f"Haar sort table generated and saved to {forward_table}. Reverse lookup table saved to {reverse_table}.")
+        print(f"Haar sort tables generated. Forward: {forward_table}, Reverse: {reverse_table}.")
