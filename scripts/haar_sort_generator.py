@@ -105,8 +105,8 @@ class HaarSortTable:
 
     def generate_reverse_lookup_table(self, table_file, reverse_table_file):
         """
-        Generate the reverse lookup table by preallocating it and writing indices
-        directly to the correct positions.
+        Generate the reverse lookup table by incrementally preallocating it
+        and writing indices directly to the correct positions.
 
         Args:
             table_file (str): Path to the forward table file.
@@ -118,12 +118,17 @@ class HaarSortTable:
         # Determine the total number of entries
         total_entries = os.path.getsize(table_file) // entry_size
 
-        # Preallocate the reverse table on disk
+        # Incrementally preallocate the reverse table on disk
+        chunk_size = 10_000_000  # Number of entries per chunk
+        zero_chunk = b"\x00" * (chunk_size * entry_size)
         with open(reverse_table_file, "wb") as f_reverse:
-            f_reverse.write(b"\x00" * (total_entries * entry_size))
+            for _ in tqdm(range((total_entries + chunk_size - 1) // chunk_size), desc="Preallocating Reverse Table"):
+                f_reverse.write(zero_chunk[:min(chunk_size, total_entries) * entry_size])
+                total_entries -= chunk_size
 
         # Populate the reverse table
         with open(table_file, "rb") as f_table, open(reverse_table_file, "r+b") as f_reverse:
+            total_entries = os.path.getsize(table_file) // entry_size
             with tqdm(total=total_entries, desc="Generating Reverse Lookup Table") as pbar:
                 position = 0
                 while True:
@@ -165,7 +170,7 @@ if __name__ == "__main__":
             exit(1)
         reverse_table = f"{args.table}_index.bin"
         forward_table = f"{args.table}_grids.bin"
-        table = HaarSortTable()
+        table = HaarSortTable(bit_depth=args.bit_depth)
         table.generate_reverse_lookup_table(forward_table, reverse_table)
         print(f"Reverse lookup table generated and saved to {reverse_table}.")
 
@@ -180,3 +185,4 @@ if __name__ == "__main__":
         table.merge_sorted_chunks(temp_files, forward_table)
         table.generate_reverse_lookup_table(forward_table, reverse_table)
         print(f"Haar sort tables generated. Forward: {forward_table}, Reverse: {reverse_table}.")
+
