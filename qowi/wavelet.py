@@ -21,9 +21,9 @@ def haar_decode(ll, hl, lh, hh):
 
 class Wavelet:
     def __init__(self, width=0, height=0, color_depth=0, wavelet_levels=10, precision_digits=0):
-        self.width = 0
-        self.height = 0
-        self.color_depth = 0
+        self.width = None
+        self.height = None
+        self.color_depth = None
         self.length = 0
         self.num_levels = 0
         self.wavelet_levels = wavelet_levels
