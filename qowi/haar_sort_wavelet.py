@@ -4,16 +4,14 @@ from numpy import ndarray
 from qowi.haar_sort_table import HaarSortTable
 
 class HaarSortWavelet:
-    def __init__(self, haar_sort_table, width=0, height=0, color_depth=0, haar_sort_depth=8):
+    def __init__(self, haar_sort_table: HaarSortTable, width=0, height=0, color_depth=0):
         self.width = None
         self.height = None
         self.color_depth = None
-        self.haar_sort_table = HaarSortTable(haar_sort_depth, haar_sort_table)
+        self.haar_sort_table = haar_sort_table
         self.length = 0
         self.num_levels = 0
         self.wavelet = None
-        self.carry_over = None
-
         self._initialize_from_shape(width, height, color_depth)
 
     def _initialize_from_shape(self, width, height, color_depth):
@@ -94,7 +92,7 @@ class HaarSortWavelet:
                     d = np.empty(3, dtype=np.uint8)
 
                     for p in range(3):
-                        a[p], b[p], c[p], d[p] = self.haar_sort_table.grid_to_haar_sort_components((ll[p], hl[p], lh[p], hh[p]))
+                        a[p], b[p], c[p], d[p] = self.haar_sort_table.haar_sort_components_to_grid((ll[p], hl[p], lh[p], hh[p]))
 
                     dest_wavelets[2 * i, 2 * j] = a
                     dest_wavelets[2 * i, 2 * j + 1] = b

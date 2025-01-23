@@ -5,98 +5,90 @@ import argparse
 from itertools import islice, product
 import struct
 from tqdm import tqdm
+import heapq
+from qowi.grids import calculate_haar_coefficients, grid_to_index, get_struct_format, validate_bit_depth, calculate_haar_keys
+
+DEFAULT_CHUNK_SIZE = 5_000_000
 
 class HaarSortTable:
-    def __init__(self, bit_depth=None, temp_dir=None):
-        if bit_depth not in {2, 4, 8}:
-            raise ValueError("bit_depth must be precisely 2, 4, or 8.")
-        self.bit_depth = bit_depth
+    def __init__(self, pixel_bit_depth=None, temp_dir=None):
+        validate_bit_depth(pixel_bit_depth)
+        self.pixel_bit_depth = pixel_bit_depth
         self.temp_dir = temp_dir or tempfile.gettempdir()
+        self.struct_format = get_struct_format(self.pixel_bit_depth)
+        self.entry_size = struct.calcsize(self.struct_format)
 
-    def _get_struct_format(self):
-        if self.bit_depth == 2:
-            return "B"
-        elif self.bit_depth == 4:
-            return "H"
-        elif self.bit_depth == 8:
-            return "I"
+    def open_binary_file(self, filepath, mode):
+        return open(filepath, mode)
 
-    def _calculate_haar_coefficients_vectorized(self, grids):
-        grids = np.array(grids, dtype=np.int16)
-        LL = np.sum(grids, axis=1)
-        HL = grids[:, 0] - grids[:, 1] + grids[:, 2] - grids[:, 3]
-        LH = grids[:, 0] + grids[:, 1] - grids[:, 2] - grids[:, 3]
-        HH = grids[:, 0] - grids[:, 1] - grids[:, 2] + grids[:, 3]
-        return LL, HL, LH, HH
+    def stream_file(self, file):
+        with self.open_binary_file(file, "rb") as f:
+            while chunk := f.read(self.entry_size):
+                yield struct.unpack(self.struct_format, chunk)[0]
 
-    def _grid_to_index_vectorized(self, grids):
+    def generate_all_grids(self):
+        max_value = (1 << self.pixel_bit_depth) - 1
+        return product(range(max_value + 1), repeat=4)
+
+    def calculate_and_sort_keys(self, grids):
         grids = np.array(grids, dtype=np.uint8)
-        shifts = np.array([3, 2, 1, 0]) * (self.bit_depth // 4)
-        return np.sum(grids << shifts, axis=1)
+        coefficients = calculate_haar_coefficients(grids)
+        keys = calculate_haar_keys(coefficients)
+        sorted_indices = np.argsort(keys)
+        return grids[sorted_indices]
 
-    def sort_and_save_chunks(self, chunk_size=10**6):
-        if not self.bit_depth:
+    def sort_and_save_chunks(self, chunk_size=DEFAULT_CHUNK_SIZE):
+        if not self.pixel_bit_depth:
             raise ValueError("Bit depth must be set.")
 
-        max_value = (1 << self.bit_depth) - 1
-        total_grids = (max_value + 1) ** 4
-        all_grids = product(range(max_value + 1), repeat=4)  # Streamed grid generation
-        struct_format = self._get_struct_format()
-
+        all_grids = self.generate_all_grids()
         temp_files = []
+        total_grids = (1 << self.pixel_bit_depth) ** 4
+
         with tqdm(total=total_grids, desc="Sorting and Saving Chunks") as pbar:
             while True:
                 chunk = list(islice(all_grids, chunk_size))
                 if not chunk:
                     break
 
-                chunk = np.array(chunk, dtype=np.uint8)
-                LL, HL, LH, HH = self._calculate_haar_coefficients_vectorized(chunk)
-                keys = (LL << 24) | ((HL & 0xFF) << 16) | ((LH & 0xFF) << 8) | (HH & 0xFF)
-                sorted_indices = np.argsort(keys)
-                sorted_chunk = chunk[sorted_indices]
-                indices = self._grid_to_index_vectorized(sorted_chunk)
+                sorted_chunk = self.calculate_and_sort_keys(chunk)
+                indices = grid_to_index(sorted_chunk, self.pixel_bit_depth)
 
                 temp_file = os.path.join(self.temp_dir, f"sorted_chunk_{len(temp_files)}.bin")
-                with open(temp_file, "wb") as f:
-                    f.write(struct.pack(f"{len(indices)}{struct_format}", *indices))
+                with self.open_binary_file(temp_file, "wb") as f:
+                    f.write(struct.pack(f"{len(indices)}{self.struct_format}", *indices))
                 temp_files.append(temp_file)
                 pbar.update(len(chunk))
 
         return temp_files
 
     def merge_sorted_chunks(self, temp_files, table_file):
-        struct_format = self._get_struct_format()
-
-        def stream_file(file):
-            with open(file, "rb") as f:
-                while chunk := f.read(struct.calcsize(struct_format)):
-                    yield struct.unpack(struct_format, chunk)[0]
-
-        with open(table_file, "wb") as f_out:
-            with tqdm(desc="Merging and Writing Main Table") as pbar:
-                streams = [stream_file(f) for f in temp_files]
+        total_entries = sum(os.path.getsize(f) // self.entry_size for f in temp_files)
+        with self.open_binary_file(table_file, "wb") as f_out:
+            with tqdm(total=total_entries, desc="Merging and Writing Main Table") as pbar:
+                streams = [self.stream_file(f) for f in temp_files]
                 for index in heapq.merge(*streams):
-                    f_out.write(struct.pack(struct_format, index))
+                    f_out.write(struct.pack(self.struct_format, index))
                     pbar.update(1)
 
         for file in temp_files:
             os.remove(file)
 
     def generate_reverse_lookup_table(self, table_file, reverse_table_file):
-        struct_format = self._get_struct_format()
-        entry_size = struct.calcsize(struct_format)
-        total_entries = os.path.getsize(table_file) // entry_size
+        total_entries = os.path.getsize(table_file) // self.entry_size
 
-        with open(reverse_table_file, "wb") as f_reverse:
-            f_reverse.write(b"\x00" * total_entries * entry_size)
+        with tqdm(total=total_entries, desc="Initializing Reverse Lookup Table") as pbar:
+            with self.open_binary_file(reverse_table_file, "wb") as f_reverse:
+                for _ in range(total_entries):
+                    f_reverse.write(b"\x00" * self.entry_size)
+                    pbar.update(1)
 
-        with open(table_file, "rb") as f_table, open(reverse_table_file, "r+b") as f_reverse:
+        with self.open_binary_file(table_file, "rb") as f_table, self.open_binary_file(reverse_table_file, "r+b") as f_reverse:
             with tqdm(total=total_entries, desc="Generating Reverse Lookup Table") as pbar:
-                for position, data in enumerate(iter(lambda: f_table.read(entry_size), b"")):
-                    index = struct.unpack(struct_format, data)[0]
-                    f_reverse.seek(index * entry_size)
-                    f_reverse.write(struct.pack(struct_format, position))
+                for position, data in enumerate(iter(lambda: f_table.read(self.entry_size), b"")):
+                    index = struct.unpack(self.struct_format, data)[0]
+                    f_reverse.seek(index * self.entry_size)
+                    f_reverse.write(struct.pack(self.struct_format, position))
                     pbar.update(1)
 
 if __name__ == "__main__":
@@ -109,7 +101,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--table", type=str, required=True, help="Table prefix for Haar sort files.")
     args = parser.parse_args()
 
-    table = HaarSortTable(bit_depth=args.bit_depth)
+    table = HaarSortTable(pixel_bit_depth=args.bit_depth)
 
     if args.generate_forward or args.generate:
         temp_files = table.sort_and_save_chunks(args.chunk_size)
@@ -122,4 +114,3 @@ if __name__ == "__main__":
         forward_table = f"{args.table}_grids.bin"
         table.generate_reverse_lookup_table(forward_table, reverse_table)
         print(f"Reverse lookup table generated at {reverse_table}.")
-
