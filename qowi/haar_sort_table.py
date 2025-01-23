@@ -39,10 +39,10 @@ class HaarSortTable:
         pixel_indices = self._lookup_index(wavelet_indices, self.reverse_table_file)
         return grids.indices_to_grids(pixel_indices, self.pixel_bit_depth).astype(np.uint8)
 
-    def pixels_to_wavelet(self, pixels: np.ndarray) -> np.ndarray:
+    def pixels_to_wavelets(self, pixels: np.ndarray) -> np.ndarray:
         pixel_indices = self.pixels_to_haar_sort_indices(pixels)
         return grids.indices_to_grids(pixel_indices, self.pixel_bit_depth).astype(np.uint8)
 
-    def wavelet_to_pixels(self, wavelet: np.ndarray) -> np.ndarray:
+    def wavelets_to_pixels(self, wavelet: np.ndarray) -> np.ndarray:
         wavelet_indices = grids.grids_to_indices(wavelet, self.pixel_bit_depth)
         return self.haar_sort_indices_to_pixels(wavelet_indices).astype(np.uint8)

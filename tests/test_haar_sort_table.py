@@ -90,7 +90,7 @@ class TestHaarSortTable(unittest.TestCase):
                 # Directly mock the final output of pixels_to_wavelet
                 with patch.object(haar_sort_table, "pixels_to_wavelet",
                                   return_value=np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.uint8)):
-                    result = haar_sort_table.pixels_to_wavelet(pixels)
+                    result = haar_sort_table.pixels_to_wavelets(pixels)
                     expected = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.uint8)
                     np.testing.assert_array_equal(result, expected)
 
@@ -101,7 +101,7 @@ class TestHaarSortTable(unittest.TestCase):
         # Mock the haar_sort_index_to_pixels method to avoid file dependency
         with patch.object(haar_sort_table, "haar_sort_index_to_pixels",
                           return_value=np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.uint8)):
-            result = haar_sort_table.wavelet_to_pixels(wavelet)
+            result = haar_sort_table.wavelets_to_pixels(wavelet)
             expected = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.uint8)
             np.testing.assert_array_equal(result, expected)
 
