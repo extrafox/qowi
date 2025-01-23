@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     if args.pixels:
         try:
-            index = table.pixels_to_haar_sort_index(args.pixels)
+            index = table.pixels_to_haar_sort_indices(args.pixels)
             wavelet = table.pixels_to_wavelet(args.pixels)
             print(f"The Haar Sort index for pixels {args.pixels} is {index} / {wavelet}.")
         except ValueError as e:
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     if args.index is not None:
         try:
-            pixels = table.haar_sort_index_to_pixels(args.index)
+            pixels = table.haar_sort_indices_to_pixels(args.index)
             print(f"The pixels for Haar Sort index {args.index} is {pixels}.")
         except ValueError as e:
             print(e)

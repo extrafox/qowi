@@ -6,16 +6,16 @@ from itertools import islice, product
 import struct
 from tqdm import tqdm
 import heapq
-from qowi.grids import calculate_haar_coefficients, grid_to_index, get_struct_format, validate_bit_depth, calculate_haar_keys
+import qowi.grids as grids
 
 DEFAULT_CHUNK_SIZE = 5_000_000
 
 class HaarSortTable:
     def __init__(self, pixel_bit_depth=None, temp_dir=None):
-        validate_bit_depth(pixel_bit_depth)
+        grids.validate_bit_depth(pixel_bit_depth)
         self.pixel_bit_depth = pixel_bit_depth
         self.temp_dir = temp_dir or tempfile.gettempdir()
-        self.struct_format = get_struct_format(self.pixel_bit_depth)
+        self.struct_format = grids.get_struct_format(self.pixel_bit_depth)
         self.entry_size = struct.calcsize(self.struct_format)
 
     def open_binary_file(self, filepath, mode):
@@ -32,8 +32,8 @@ class HaarSortTable:
 
     def calculate_and_sort_keys(self, grids):
         grids = np.array(grids, dtype=np.uint8)
-        coefficients = calculate_haar_coefficients(grids)
-        keys = calculate_haar_keys(coefficients)
+        coefficients = grids.calculate_haar_coefficients(grids)
+        keys = grids.calculate_haar_keys(coefficients)
         sorted_indices = np.argsort(keys)
         return grids[sorted_indices]
 
@@ -52,7 +52,7 @@ class HaarSortTable:
                     break
 
                 sorted_chunk = self.calculate_and_sort_keys(chunk)
-                indices = grid_to_index(sorted_chunk, self.pixel_bit_depth)
+                indices = grids.grids_to_indices(sorted_chunk, self.pixel_bit_depth)
 
                 temp_file = os.path.join(self.temp_dir, f"sorted_chunk_{len(temp_files)}.bin")
                 with self.open_binary_file(temp_file, "wb") as f:
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--generate-reverse", action="store_true", help="Generate a Haar sort reverse lookup table.")
     parser.add_argument("--generate", action="store_true", help="Generate both forward and reverse Haar sort tables.")
     parser.add_argument("--bit_depth", type=int, required=True, help="Set the bit depth for the grids.")
-    parser.add_argument("--chunk_size", type=int, default=5_000_000, help="Set the chunk size for sorting.")
+    parser.add_argument("--chunk_size", type=int, default=DEFAULT_CHUNK_SIZE, help="Set the chunk size for sorting.")
     parser.add_argument("-t", "--table", type=str, required=True, help="Table prefix for Haar sort files.")
     args = parser.parse_args()
 
