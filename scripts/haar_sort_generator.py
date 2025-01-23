@@ -27,7 +27,6 @@ class HaarSortGenerator:
     def generate_all_grids_to_file(self, output_file):
         max_value = (1 << self.pixel_bit_depth) - 1
         total_grids = (max_value + 1) ** 4
-
         with open(output_file, "wb") as f:
             with tqdm(total=total_grids, desc="Generating all grids") as pbar:
                 for grid in product(range(max_value + 1), repeat=4):
@@ -81,7 +80,6 @@ class HaarSortGenerator:
                     coefficients = grids.calculate_haar_coefficients(grids_data)
                     sorted_indices = np.argsort(coefficients[:, coefficient_index], kind='mergesort')
                     sorted_entries = grids_data[sorted_indices]
-
                     f_out.write(sorted_entries.tobytes())
                     pbar.update(1)
 
