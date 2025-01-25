@@ -18,30 +18,29 @@ def calculate_haar_coefficients(grids: np.ndarray) -> np.ndarray:
 
     return coefficients
 
-def grids_to_indices(grids: np.ndarray, pixel_bit_depth: int) -> np.ndarray:
-    validate_bit_depth(pixel_bit_depth)
-    grids = np.array(grids, dtype=np.uint8)
-
-    # Calculate the number of bits for each pixel value
-    total_bits = pixel_bit_depth * 4  # Since we have 4 values per grid
-    shifts = np.array([total_bits - (pixel_bit_depth * (i + 1)) for i in range(4)])
-
-    # Shift and pack the pixel values
-    return np.sum(grids * (1 << shifts), axis=1)
-
 BIT_SHIFTS = np.array([24, 16, 8, 0], dtype=np.int32)
 def calculate_haar_keys(coefficients: np.ndarray) -> np.ndarray:
     keys = np.sum((coefficients & 0xFF) << BIT_SHIFTS, axis=1)
     return keys
+
+def grids_to_indices(grids: np.ndarray, pixel_bit_depth: int) -> np.ndarray:
+    validate_bit_depth(pixel_bit_depth)
+
+    # Avoid unnecessary wrapping; grids is already an ndarray
+    total_bits = pixel_bit_depth * 4  # Since we have 4 values per grid
+    shifts = np.array([total_bits - (pixel_bit_depth * (i + 1)) for i in range(4)])
+
+    # No need to wrap grids in np.array, directly use the ndarray
+    return np.sum(grids * (1 << shifts), axis=1)
 
 def indices_to_grids(indices: np.ndarray, pixel_bit_depth: int) -> np.ndarray:
     validate_bit_depth(pixel_bit_depth)
     max_value = (1 << pixel_bit_depth) - 1
     shifts = np.array([0, 1, 2, 3]) * pixel_bit_depth
 
-    grids = np.array([
-        [(i >> shift) & max_value for shift in shifts[::-1]]  # Reverse the shifts here
-        for i in indices
-    ], dtype=np.uint8)
+    # Create the grids in a more efficient manner by modifying in-place
+    grids = np.zeros((indices.shape[0], 4), dtype=np.uint8)
+    for i, index in enumerate(indices):
+        grids[i] = [(index >> shift) & max_value for shift in shifts[::-1]]
 
     return grids

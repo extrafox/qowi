@@ -3,22 +3,28 @@ import unittest
 import tempfile
 import struct
 import numpy as np
+import qowi.grids as grids
 from itertools import product
 from haar_sort_generator import HaarSortGenerator
 
 
 class TestHaarSortGenerator(unittest.TestCase):
+    def __init__(self, methodName: str = "runTest"):
+        super().__init__(methodName)
+        self.pixel_bit_depth = 4
+        self.struct_format = grids.get_struct_format(self.pixel_bit_depth)
+
     def setUp(self):
         self.temp_dir = tempfile.gettempdir()
 
     def generate_all_grids_to_file(self, output_file):
         """Generate all possible 4-pixel grids for the given bit depth and write to file."""
         total_grids = 1 << (self.pixel_bit_depth * 4)  # 16^4 = 65536 for 4-bit depth
-        grids = np.arange(total_grids, dtype=np.uint32)
+        pixels = np.arange(total_grids, dtype=np.uint32)
 
         # Write all grids to the output file
         with open(output_file, "wb") as f:
-            for grid in grids:
+            for grid in pixels:
                 f.write(struct.pack(self.struct_format, grid))
 
         print(f"Generated {total_grids} grids to {output_file}")
