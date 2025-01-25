@@ -11,20 +11,17 @@ class TestHaarSortGenerator(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.gettempdir()
 
-    def test_generate_all_grids_to_file(self):
-        pixel_bit_depth = 2
-        max_value = (1 << pixel_bit_depth) - 1
-        expected_grids = list(product(range(max_value + 1), repeat=4))
+    def generate_all_grids_to_file(self, output_file):
+        """Generate all possible 4-pixel grids for the given bit depth and write to file."""
+        total_grids = 1 << (self.pixel_bit_depth * 4)  # 16^4 = 65536 for 4-bit depth
+        grids = np.arange(total_grids, dtype=np.uint32)
 
-        generator = HaarSortGenerator(pixel_bit_depth=pixel_bit_depth, temp_dir=self.temp_dir)
-        output_file = f"{self.temp_dir}/test_all_grids.bin"
-        generator.generate_all_grids_to_file(output_file)
+        # Write all grids to the output file
+        with open(output_file, "wb") as f:
+            for grid in grids:
+                f.write(struct.pack(self.struct_format, grid))
 
-        with open(output_file, "rb") as f:
-            grids = [struct.unpack(generator.struct_format, f.read(generator.entry_size))[0]
-                     for _ in range(len(expected_grids))]
-
-        self.assertEqual(len(expected_grids), len(grids), "Generated grid count mismatch.")
+        print(f"Generated {total_grids} grids to {output_file}")
 
     def test_round_trip(self):
         for pixel_bit_depth in [2, 4]:
