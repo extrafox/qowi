@@ -1,5 +1,4 @@
 import numpy as np
-from tqdm import tqdm
 import qowi.grids as grids
 import os
 import struct
@@ -53,7 +52,7 @@ class HaarSortGenerator:
 
         # Step 1: Generate sorted chunks for LL coefficient
         print("Sorting chunks by LL coefficient...")
-        for start in tqdm(range(0, total_grids, grids_per_chunk)):
+        for start in range(0, total_grids, grids_per_chunk):
             end = min(start + grids_per_chunk, total_grids)
             grids_array = grids.indices_to_grids(np.arange(start, end, dtype=np.uint32), self.pixel_bit_depth)
             sorted_chunk = self.sort_chunk(grids_array, 0)
