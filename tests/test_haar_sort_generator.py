@@ -4,8 +4,8 @@ import tempfile
 import struct
 import numpy as np
 from itertools import product
-from scripts.haar_sort_generator import HaarSortGenerator
-from qowi.grids import calculate_haar_coefficients
+from haar_sort_generator import HaarSortGenerator
+
 
 class TestHaarSortGenerator(unittest.TestCase):
     def setUp(self):
