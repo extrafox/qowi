@@ -47,32 +47,39 @@ class HaarSortGenerator:
                 packed_grid = grids.grids_to_indices(np.array([grid], dtype=np.uint8), self.pixel_bit_depth)[0]
                 f.write(struct.pack(self.struct_format, packed_grid))
 
-    def merge_chunks(self, chunk_files, output_file):
-        streams = [open(chunk, "rb") for chunk in chunk_files]
-        heap = []
+    def merge_chunks(self, chunk_files, output_file, max_open_files=50):
+        with open(output_file, "wb") as f:  # Keep the output file open
+            chunk_index = 0
+            while chunk_index < len(chunk_files):
+                # Open a batch of chunk files (limit the number of simultaneously open files)
+                batch_files = chunk_files[chunk_index:chunk_index + max_open_files]
+                streams = [open(chunk, "rb") for chunk in batch_files]
+                heap = []
 
-        # Initialize heap with the first entry of each chunk file
-        for i, stream in enumerate(streams):
-            chunk = stream.read(self.entry_size)
-            if chunk:
-                heapq.heappush(heap, (struct.unpack(self.struct_format, chunk)[0], i, chunk))
+                # Initialize heap with the first entry of each chunk file
+                for i, stream in enumerate(streams):
+                    chunk = stream.read(self.entry_size)
+                    if chunk:
+                        heapq.heappush(heap, (struct.unpack(self.struct_format, chunk)[0], i, chunk))
 
-        # Merge chunks into output file
-        with open(output_file, "wb") as f:
-            while heap:
-                _, index, data = heapq.heappop(heap)
-                f.write(data)
-                next_chunk = streams[index].read(self.entry_size)
-                if next_chunk:
-                    heapq.heappush(heap, (struct.unpack(self.struct_format, next_chunk)[0], index, next_chunk))
+                # Merge chunks from the current batch into the output file
+                while heap:
+                    _, index, data = heapq.heappop(heap)
+                    f.write(data)
+                    next_chunk = streams[index].read(self.entry_size)
+                    if next_chunk:
+                        heapq.heappush(heap, (struct.unpack(self.struct_format, next_chunk)[0], index, next_chunk))
 
-        # Close stream handlers
-        for stream in streams:
-            stream.close()
+                # Close the files after processing the batch
+                for stream in streams:
+                    stream.close()
 
-        # Delete chunk files after merging to free up space
-        for chunk_file in chunk_files:
-            os.remove(chunk_file)
+                # Delete chunk files after merging to free up space
+                for chunk_file in batch_files:
+                    os.remove(chunk_file)
+
+                # Move to the next batch
+                chunk_index += max_open_files
 
     def haar_sort(self):
         total_grids = (1 << (self.pixel_bit_depth * 4))
