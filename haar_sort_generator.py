@@ -81,37 +81,36 @@ class HaarSortGenerator:
                 # Move to the next batch
                 chunk_index += max_open_files
 
-    def haar_sort(self):
+    def haar_sort(self, restart_from=None):
         total_grids = (1 << (self.pixel_bit_depth * 4))
         total_chunks = (total_grids + CHUNK_SIZE - 1) // CHUNK_SIZE
         self.init_progress_bar(total_chunks * 4, "Sorting grids...")
 
         chunk_files = []
 
-        # Step 1: Generate sorted chunks for LL coefficient
-        self.update_progress_desc("Sorting chunks by LL coefficient...")
-        for start in range(0, total_grids, CHUNK_SIZE):
-            end = min(start + CHUNK_SIZE, total_grids)
-            grids_array = grids.indices_to_grids(np.arange(start, end, dtype=np.uint32), self.pixel_bit_depth)
-            sorted_chunk = self.sort_chunk(grids_array, 0)
-            chunk_file = os.path.join(self.temp_dir, f"chunk_LL_{start}_{end}.bin")
-            self.save_chunk(sorted_chunk, chunk_file)
-            chunk_files.append(chunk_file)
-            self.update_progress(1)
+        # Define the stages for clarity
+        stages = ["LL", "HL", "LH", "HH"]
+        start_stage = 0
 
-        # Step 2: Merge LL sorted chunks
-        self.update_progress_desc("Merging LL sorted chunks...")
-        merged_LL_file = os.path.join(self.temp_dir, f"{self.table_name}_sorted_LL.bin")
-        self.merge_chunks(chunk_files, merged_LL_file)
+        if restart_from:
+            if restart_from not in stages:
+                raise ValueError(f"Invalid restart stage: {restart_from}. Valid stages are: {stages}")
+            start_stage = stages.index(restart_from)
+            self.update_progress_desc(f"Resuming from {restart_from} coefficient...")
 
-        merged_file = merged_LL_file
+        merged_file = None
+        for coeff_index, coeff_name in enumerate(stages[start_stage:], start=start_stage):
+            if restart_from and coeff_name == restart_from:
+                # Use the existing sorted file for this stage
+                merged_file = os.path.join(self.temp_dir, f"{self.table_name}_sorted_{coeff_name}.bin")
+                self.update_progress_desc(f"Using existing {coeff_name} sorted file: {merged_file}")
+                continue
 
-        # Repeat for HL, LH, and HH coefficients
-        for coeff_index, coeff_name in enumerate(["HL", "LH", "HH"], start=1):
             self.update_progress_desc(f"Sorting chunks by {coeff_name} coefficient...")
             chunk_files = []
 
-            with open(merged_LL_file if coeff_index == 1 else merged_file, "rb") as f:
+            input_file = merged_file or os.path.join(self.temp_dir, f"{self.table_name}_sorted_LL.bin")
+            with open(input_file, "rb") as f:
                 grids_array = np.zeros((CHUNK_SIZE, 4), dtype=np.uint8)
                 chunk_index = 0
 
@@ -178,12 +177,14 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true", help="Generate both forward and reverse Haar sort tables.")
     parser.add_argument("-d", "--bit_depth", type=int, required=True, help="Set the bit depth for the grids.")
     parser.add_argument("-t", "--table", type=str, required=True, help="Table prefix for Haar sort files.")
+    parser.add_argument("--restart-from", type=str, choices=["LL", "HL", "LH", "HH"],
+                        help="Restart the Haar sort process from a specific coefficient (LL, HL, LH, HH).")
     args = parser.parse_args()
 
     generator = HaarSortGenerator(pixel_bit_depth=args.bit_depth, table_name=args.table)
 
     if args.generate_forward or args.generate:
-        forward_table = generator.haar_sort()
+        forward_table = generator.haar_sort(restart_from=args.restart_from)
         print(f"Forward Haar sort table generated at {forward_table}.")
 
     if args.generate_reverse or args.generate:
