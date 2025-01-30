@@ -3,6 +3,8 @@
 import argparse
 import os
 import sys
+
+from qowi.haar_sort_table import HaarSortTable
 from qowi.haar_sort_wavelet import HaarSortWavelet
 from skimage import io
 
@@ -11,7 +13,8 @@ SUPPORTED_IMAGE_FORMATS = {"png", "jpg", "jpeg", "bmp", "tiff"}
 def wavelet_transform(source_path, dest_path, haar_sort_table):
     try:
         source_image = io.imread(source_path)
-        wavelet = HaarSortWavelet(haar_sort_table=haar_sort_table)
+        lookup_table = HaarSortTable(8, haar_sort_table)
+        wavelet = HaarSortWavelet(lookup_table)
         wavelet.prepare_from_image(source_image)
         wavelet_image = wavelet.wavelet
 
@@ -31,7 +34,8 @@ def inverse_wavelet_transform(source_path, dest_path, haar_sort_table):
     try:
         wavelet_image = io.imread(source_path)
 
-        wavelet = HaarSortWavelet(haar_sort_table=haar_sort_table)
+        lookup_table = HaarSortTable(8, haar_sort_table)
+        wavelet = HaarSortWavelet(lookup_table)
         wavelet.prepare_from_wavelet(wavelet_image)
         decoded_image = wavelet.as_image()
 
