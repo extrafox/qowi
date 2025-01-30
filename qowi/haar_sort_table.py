@@ -15,21 +15,19 @@ class HaarSortTable:
         try:
             with open(table_file, "rb") as f:
                 entry_size = struct.calcsize(self._struct_format)
-                # Initialize an array to store the unpacked values
-                results = np.empty(len(keys), dtype=np.int32)
+                results = np.empty(len(keys), dtype=np.uint32)  # Ensure uint32
 
                 for idx, key in enumerate(keys):
-                    f.seek(key * entry_size)  # Seek to the key's position for each key individually
+                    f.seek(key * entry_size)
                     data = f.read(entry_size)
                     if not data:
-                        raise ValueError(f"Key {key} not found in the table {table_file}.")
-                    # Unpack and store the first value (the integer)
+                        raise ValueError(f"Key {key} not found in {table_file}.")
                     results[idx] = struct.unpack(self._struct_format, data)[0]
 
         except FileNotFoundError:
             raise ValueError(f"Table file {table_file} not found.")
 
-        return results
+        return results.astype(np.uint32)  # Ensure uint32 before returning
 
     def pixels_to_haar_sort_indices(self, pixels: np.ndarray) -> np.ndarray:
         pixel_indices = grids.grids_to_indices(pixels, self.pixel_bit_depth)
